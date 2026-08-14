@@ -158,6 +158,34 @@ else
 fi
 node --check "$F" 2>/dev/null && echo "  语法 OK"
 
+# ── 4/4 设置持久化放行补丁（第 4 层：浏览器端 settingsScope 强制 host 模式）─
+echo "== 4/4 设置持久化放行补丁 =="
+if [ -z "$ROOT" ]; then
+  echo "  [跳过] 未定位 dsh 安装目录"
+elif [ ! -d "$ROOT/node_modules/@deepseek-ai" ]; then
+  echo "  [跳过] $ROOT 下无 @deepseek-ai 包，请人工确认 dsh 安装位置"
+else
+  F4="$ROOT/node_modules/@deepseek-ai/dsh-client-ui-settings/lib/client.js"
+  if grep -q 'new SettingsScopeController(connection.api, spec, "host")' "$F4" 2>/dev/null; then
+    echo "  [已有] 设置持久化放行"
+  elif [ ! -f "$F4" ]; then
+    echo "  [缺失] $F4（该版本可能已无此文件，请人工确认）"
+    FAIL=1
+  elif [ "$MODE" = "--check" ]; then
+    echo "  [缺失] 设置持久化放行"
+  else
+    sed -i 's/connection\.isLoopback ? "host" : "memory"/"host"/' "$F4"
+    if grep -q 'new SettingsScopeController(connection.api, spec, "host")' "$F4"; then
+      echo "  [已打] 设置持久化放行（LAN 访问也可读写设置）"
+    else
+      echo "  [失败] 设置持久化放行——该版本代码结构已变化，请人工处理"
+      FAIL=1
+    fi
+  fi
+  [ -f "$F4" ] && node --check "$F4" 2>/dev/null && echo "  语法 OK"
+fi
+
+
 if [ "$MODE" = "--check" ]; then
   echo "== 检查完成（未改动任何文件）=="
   exit 0

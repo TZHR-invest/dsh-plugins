@@ -34,7 +34,7 @@ dsh web 局域网访问支持（浏览器端 crypto.randomUUID polyfill + 0.0.0.
 
 | 命令 | 作用 |
 |---|---|
-| bash install.sh | 安装/补齐全部三层（幂等） |
+| bash install.sh | 安装/补齐全部四层（幂等） |
 | bash install.sh --check | 只检查状态，不改任何文件 |
 | bash install.sh --restart | 安装后重启 dsh web 并 curl 验证 |
 
@@ -46,6 +46,7 @@ dsh web 局域网访问支持（浏览器端 crypto.randomUUID polyfill + 0.0.0.
 | 2 | 插件源码 + profile 安装 | ~/.dsh/plugins/dsh-lan-access/、~/.dsh/profiles/node_modules/dsh-lan-access/ |
 | 2 | 组合接线 | ~/.dsh/profiles/web/cordis.patch.yml 追加 insert 行 |
 | 3 | 特权围栏放行 | node_modules/@deepseek-ai/dsh-client-connection/lib/index.js 一行补丁 |
+| 4 | 设置持久化放行 | node_modules/@deepseek-ai/dsh-client-ui-settings/lib/client.js 一行补丁（settingsScope 强制 host，LAN 也可读写设置） |
 
 另外会把 reapply-lan-patches.sh 复制到 ~/.dsh/：**以后 dsh 升级/重装后**（第 3 层补丁会被覆盖），跑 `bash ~/.dsh/reapply-lan-patches.sh --restart` 即可恢复。
 
