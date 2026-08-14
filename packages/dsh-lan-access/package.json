@@ -1,0 +1,19 @@
+{
+  "name": "dsh-lan-access",
+  "version": "0.1.0",
+  "description": "dsh web 局域网访问支持：浏览器端 crypto.randomUUID polyfill（明文 HTTP 非安全上下文兜底）。",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "client": {
+      "inject": [],
+      "platform": "web",
+      "immediately": true
+    }
+  }
+}
