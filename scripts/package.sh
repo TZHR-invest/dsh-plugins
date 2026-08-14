@@ -14,6 +14,7 @@ for pkg in "$REPO"/packages/*/; do
   OUT="$TMP/$NAME-install"
   mkdir -p "$OUT/$NAME"
   cp "$pkg/package.json" "$pkg/index.js" "$pkg/client.js" "$OUT/$NAME/"
+  [ -f "$pkg/cordis.patch.yml" ] && cp "$pkg/cordis.patch.yml" "$OUT/$NAME/"
   [ -f "$pkg/install.sh" ] && cp "$pkg/install.sh" "$OUT/"
   [ -f "$pkg/reapply-lan-patches.sh" ] && cp "$pkg/reapply-lan-patches.sh" "$OUT/"
   [ -f "$pkg/README.md" ] && cp "$pkg/README.md" "$OUT/"

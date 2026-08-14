@@ -87,47 +87,119 @@ EOF
   echo "  [已加] $PATCH1"
 fi
 
-# ── 2/4 插件安装（第 2 层前半：源码 + profile 安装目录）────────────────────
-echo "== 2/4 插件安装 =="
+# ── 2/4 插件安装与接线（官方 bundle 流优先，复制流回退）──────────────────
+echo "== 2/4 插件安装与接线 =="
+PATCH2="$DSH/profiles/web/cordis.patch.yml"
 DST_PLUGINS="$DSH/plugins/dsh-lan-access"
 DST_PROFILE="$DSH/profiles/node_modules/dsh-lan-access"
-if [ -f "$DST_PROFILE/client.js" ] && grep -q "randomUUID" "$DST_PROFILE/client.js" 2>/dev/null; then
-  echo "  [已有] $DST_PROFILE"
-else
-  if [ "$MODE" = "--check" ]; then
-    echo "  [缺失] $DST_PROFILE（可安装）"
-  else
-    mkdir -p "$DST_PLUGINS" "$DST_PROFILE"
-    for d in "$DST_PLUGINS" "$DST_PROFILE"; do
-      mkdir -p "$d"
-      find "$PLUGIN" -maxdepth 1 -type f \
-        ! -name "install.sh" ! -name "reapply-lan-patches.sh" ! -name "README.md" \
-        -exec cp {} "$d/" \;
-    done
-    echo "  [已装] $DST_PLUGINS"
-    echo "  [已装] $DST_PROFILE"
-  fi
-fi
 
-# ── 3/4 组合接线（第 2 层后半：web profile 用户 patch）────────────────────
-PATCH2="$DSH/profiles/web/cordis.patch.yml"
-echo "== 3/4 组合接线 =="
-if grep -q "dsh-lan-access" "$PATCH2" 2>/dev/null; then
-  echo "  [已有] $PATCH2"
-elif [ ! -d "$DSH/profiles/web" ]; then
-  echo "  [跳过] web profile 尚未初始化（$DSH/profiles/web 不存在）"
-  echo "         请先运行一次 dsh web 完成初始化，再重跑本脚本接线"
-  FAIL=1
-elif [ "$MODE" = "--check" ]; then
-  echo "  [缺失] $PATCH2 中的 lan-access 接线行"
-else
-  cat >> "$PATCH2" <<'EOF'
+bundle_wired() {
+  [ -f "$DSH/profiles/web/package.json" ] && grep -q '"dsh-lan-access"' "$DSH/profiles/web/package.json"
+}
+legacy_wired() {
+  [ -f "$DST_PROFILE/client.js" ] && grep -q "randomUUID" "$DST_PROFILE/client.js" 2>/dev/null \
+    && [ -f "$PATCH2" ] && grep -q "lan-access" "$PATCH2"
+}
+
+cleanup_legacy_lines() {
+  local f="$1"
+  [ -f "$f" ] || return 0
+  grep -q 'id: lan-access' "$f" || return 0
+  awk '
+    function flush(   i, skipnext) {
+      if (!start) return
+      if (has_lan && cnt == 1) { start=0; return }
+      skipnext=0
+      for (i=1; i<=n; i++) {
+        if (skipnext) { skipnext=0; continue }
+        if (lines[i] ~ /^[[:space:]]*- id: lan-access[[:space:]]*$/) { skipnext=1; continue }
+        print lines[i]
+      }
+      start=0
+    }
+    {
+      if ($0 ~ /^[[:space:]]*- insert:[[:space:]]*$/) {
+        flush()
+        start=1; n=0; cnt=0; has_lan=0
+        lines[++n]=$0
+        next
+      }
+      if (start) {
+        lines[++n]=$0
+        if ($0 ~ /^[[:space:]]*- id: lan-access[[:space:]]*$/) { has_lan=1; cnt++ }
+        else if ($0 ~ /^[[:space:]]*- id:/) cnt++
+        next
+      }
+      print
+    }
+    END { flush() }
+  ' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+  [ -s "$f" ] || printf '[]\n' > "$f"
+  echo "  [清理] 移除 $f 旧手动接线行（bundle 已接管）"
+}
+
+
+install_legacy() {
+  # 复制流：安装到共享 node_modules + 手动 patch 接线
+  mkdir -p "$DST_PROFILE"
+  find "$PLUGIN" -maxdepth 1 -type f \
+    ! -name "install.sh" ! -name "reapply-lan-patches.sh" ! -name "README.md" \
+    -exec cp {} "$DST_PROFILE/" \;
+  echo "  [已装] $DST_PROFILE"
+  if [ ! -d "$DSH/profiles/web" ]; then
+    echo "  [跳过] web profile 尚未初始化（$DSH/profiles/web 不存在）"
+    echo "         请先运行一次 dsh web 完成初始化，再重跑本脚本接线"
+    FAIL=1
+  elif ! grep -q "dsh-lan-access" "$PATCH2" 2>/dev/null; then
+    sed -i '/^[[:space:]]*\[\][[:space:]]*$/d' "$PATCH2"
+    cat >> "$PATCH2" <<'EOF'
 - insert:
     - id: lan-access
       name: 'dsh-lan-access'
 EOF
-  echo "  [已加] $PATCH2"
+    echo "  [已加] $PATCH2"
+  fi
+}
+
+if bundle_wired; then
+  echo "  [已有] 官方 bundle 流已接线（web profile bundles 含 dsh-lan-access）"
+  cleanup_legacy_lines "$PATCH2"
+elif legacy_wired; then
+  echo "  [已有] 旧复制流已接线（$DST_PROFILE + $PATCH2）"
+else
+  # 1) 用户层源码备份（持久位置，升级不丢；dsh plugin 的 link 指向这里）
+  if [ "$MODE" != "--check" ]; then
+    mkdir -p "$DST_PLUGINS"
+    find "$PLUGIN" -maxdepth 1 -type f \
+      ! -name "install.sh" ! -name "reapply-lan-patches.sh" ! -name "README.md" \
+      -exec cp {} "$DST_PLUGINS/" \;
+    echo "  [已装] $DST_PLUGINS（用户层源码，升级不丢）"
+  fi
+  # 2) 官方流：dsh plugin add（自动初始化 profile / pnpm 链接 / 追加 bundles 层）
+  DSH_CMD=""
+  if [ -n "$ROOT" ] && [ -x "$ROOT/node_modules/.bin/dsh" ]; then DSH_CMD="$ROOT/node_modules/.bin/dsh"; fi
+  if [ -z "$DSH_CMD" ] && command -v dsh >/dev/null 2>&1; then DSH_CMD="dsh"; fi
+  if [ "$MODE" = "--check" ]; then
+    if [ -n "$DSH_CMD" ] && command -v pnpm >/dev/null 2>&1; then
+      echo "  [缺失] 未接线（将执行 dsh plugin --profile web add，自动加层）"
+    else
+      echo "  [缺失] 未接线（无 dsh/pnpm，将走复制流）"
+    fi
+  elif [ -n "$DSH_CMD" ] && command -v pnpm >/dev/null 2>&1; then
+    echo "  执行: $DSH_CMD plugin --profile web add $DST_PLUGINS"
+    if "$DSH_CMD" plugin --profile web add "$DST_PLUGINS"; then
+      echo "  [已装] 官方 bundle 流接线成功（bundles 层 + pnpm link）"
+      cleanup_legacy_lines "$PATCH2"
+    else
+      echo "  [回退] dsh plugin add 失败，改用复制+手动接线"
+      install_legacy
+    fi
+  else
+    echo "  [回退] 无 dsh 或 pnpm，改用复制+手动接线"
+    install_legacy
+  fi
 fi
+
 
 # ── 4/4 特权围栏补丁（第 3 层，唯一留在 node_modules 的补丁）───────────────
 echo "== 4/4 特权围栏补丁 =="

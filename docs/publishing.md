@@ -26,21 +26,36 @@ scp dist/dsh-lan-access-install.tar.gz user@目标机:~/
 cd ~ && tar xzf dsh-lan-access-install.tar.gz
 cd dsh-lan-access-install && bash install.sh --restart
 ```
-
-`install.sh` 自动完成全部接线：
+`install.sh` 自动完成全部接线（标准组合包，官方 bundle 流优先）：
 1. webserver 绑定 0.0.0.0（写 `~/.dsh/cordis.patch.yml`）
 2. 插件源码 → `~/.dsh/plugins/<name>/`（用户层，升级不丢）
-3. 安装 → `~/.dsh/profiles/node_modules/<name>/`
-4. 组合接线 → `~/.dsh/profiles/web/cordis.patch.yml` 追加 insert
+3. **官方流接线**：`dsh plugin --profile web add <插件目录>` —— 自动 pnpm 链接、
+   追加进 `dsh.profile.bundles` 层列表（包声明了 `dsh.bundle.patch`），并清理
+   profile patch 里的旧手动接线行
+4. dsh/pnpm 不可用或 add 失败时**回退**：复制到 `~/.dsh/profiles/node_modules/<name>/`
+   + profile patch 手动 insert
 5. 特权围栏补丁（`dsh-client-connection` 一行补丁，唯一的 node_modules 修改）
 
-命令模式：
+> 若目标机已有旧式手动接线（profile patch 的 insert 行），install.sh 检测到
+> bundle 已接线后会自动移除旧行，避免重复 insert。
 
 | 命令 | 作用 |
 |---|---|
 | `bash install.sh` | 安装/补齐（幂等） |
 | `bash install.sh --check` | 只检查状态，不改文件 |
 | `bash install.sh --restart` | 安装后重启 dsh web 并 curl 验证 |
+
+## 2.5 直接走官方流（不走 tarball）
+
+如果目标机可以直接访问插件源码（git clone / 挂载目录），官方 `dsh plugin` 一条命令即可：
+
+```bash
+dsh plugin --profile web add ./dsh-lan-access
+# 卸载：dsh plugin --profile web remove dsh-lan-access（同时移除依赖与层）
+```
+
+但注意：pnpm 以 `link:` 方式引用源码路径，删掉源码目录会导致插件失效——tarball 方案的
+install.sh 会把源码复制到 `~/.dsh/plugins/`（持久位置）再 add，因此 tarball 更适合一次性部署。
 
 ## 3. 目标机前置要求
 

@@ -10,6 +10,16 @@ for pkg in "$REPO"/packages/*/; do
   [ -f "$pkg/package.json" ] || { echo "  [缺失] package.json"; FAIL=1; continue; }
   node -e "JSON.parse(require('fs').readFileSync('$pkg/package.json','utf8'))" \
     && echo "  [OK] package.json 合法" || FAIL=1
+  if [ -f "$pkg/cordis.patch.yml" ]; then
+    if grep -q '"bundle"' "$pkg/package.json" && grep -q '"patch"' "$pkg/package.json"; then
+      echo "  [OK] dsh.bundle.patch 声明存在（标准组合包）"
+    else
+      echo "  [警告] 有 cordis.patch.yml 但 package.json 未声明 dsh.bundle.patch"
+      FAIL=1
+    fi
+  else
+    echo "  [警告] 无 cordis.patch.yml（非 bundle 包，仅 client/host 插件则正常）"
+  fi
   if [ -f "$pkg/index.js" ]; then
     node --check "$pkg/index.js" && echo "  [OK] index.js 语法" || FAIL=1
   fi

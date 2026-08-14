@@ -15,33 +15,109 @@ set -u
 
 MODE="${1:-apply}"
 
-# ── 1/3 插件安装（源码 ~/.dsh/plugins -> profile 安装目录）──────────────────
+# ── 1/3 插件安装与接线（官方 bundle 流优先，复制流回退）──────────────────
 SRC="$HOME/.dsh/plugins/dsh-lan-access"
 DST="$HOME/.dsh/profiles/node_modules/dsh-lan-access"
-echo "== 1/3 插件安装 =="
-if [ -f "$DST/client.js" ] && grep -q "randomUUID" "$DST/client.js" 2>/dev/null; then
-  echo "  [已有] $DST"
-elif [ -d "$SRC" ]; then
-  if [ "$MODE" = "--check" ]; then
-    echo "  [缺失] $DST（可安装）"
-  else
+PATCH="$HOME/.dsh/profiles/web/cordis.patch.yml"
+echo "== 1/3 插件安装与接线 =="
+
+bundle_wired() {
+  [ -f "$HOME/.dsh/profiles/web/package.json" ] && grep -q '"dsh-lan-access"' "$HOME/.dsh/profiles/web/package.json"
+}
+legacy_wired() {
+  [ -f "$DST/client.js" ] && grep -q "randomUUID" "$DST/client.js" 2>/dev/null \
+    && [ -f "$PATCH" ] && grep -q "lan-access" "$PATCH"
+}
+
+cleanup_legacy_lines() {
+  local f="$1"
+  [ -f "$f" ] || return 0
+  grep -q 'id: lan-access' "$f" || return 0
+  awk '
+    function flush(   i, skipnext) {
+      if (!start) return
+      if (has_lan && cnt == 1) { start=0; return }
+      skipnext=0
+      for (i=1; i<=n; i++) {
+        if (skipnext) { skipnext=0; continue }
+        if (lines[i] ~ /^[[:space:]]*- id: lan-access[[:space:]]*$/) { skipnext=1; continue }
+        print lines[i]
+      }
+      start=0
+    }
+    {
+      if ($0 ~ /^[[:space:]]*- insert:[[:space:]]*$/) {
+        flush()
+        start=1; n=0; cnt=0; has_lan=0
+        lines[++n]=$0
+        next
+      }
+      if (start) {
+        lines[++n]=$0
+        if ($0 ~ /^[[:space:]]*- id: lan-access[[:space:]]*$/) { has_lan=1; cnt++ }
+        else if ($0 ~ /^[[:space:]]*- id:/) cnt++
+        next
+      }
+      print
+    }
+    END { flush() }
+  ' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+  [ -s "$f" ] || printf '[]\n' > "$f"
+  echo "  [清理] 移除 $f 旧手动接线行（bundle 已接管）"
+}
+
+
+install_legacy() {
+  if [ ! -d "$SRC" ]; then
+    echo "  [缺失] 插件源码 $SRC 不存在，请人工恢复"
+    return 1
+  fi
+  if [ ! -f "$DST/client.js" ]; then
     mkdir -p "$DST" && cp "$SRC"/* "$DST/" && echo "  [已装] $DST"
   fi
-else
+  if grep -q "dsh-lan-access" "$PATCH" 2>/dev/null; then
+    echo "  [已有] $PATCH"
+  else
+    sed -i '/^[[:space:]]*\[\][[:space:]]*$/d' "$PATCH"
+    printf -- "- insert:\n    - id: lan-access\n      name: 'dsh-lan-access'\n" >> "$PATCH"
+    echo "  [已加] $PATCH"
+  fi
+}
+
+if bundle_wired; then
+  echo "  [已有] 官方 bundle 流已接线（web profile bundles 含 dsh-lan-access）"
+  cleanup_legacy_lines "$PATCH"
+elif legacy_wired; then
+  echo "  [已有] 旧复制流已接线（$DST + $PATCH）"
+elif [ ! -d "$SRC" ]; then
   echo "  [缺失] 插件源码 $SRC 不存在，请人工恢复"
+elif [ "$MODE" = "--check" ]; then
+  echo "  [缺失] 未接线（将执行 dsh plugin --profile web add $SRC）"
+else
+  # 官方流：dsh plugin add（自动 pnpm 链接 + 追加 bundles 层）
+  DSH_CMD=""
+  command -v dsh >/dev/null 2>&1 && DSH_CMD="dsh"
+  if [ -z "$DSH_CMD" ]; then
+    for d in $(ls -dt "$HOME"/.npm/_npx/*/ 2>/dev/null); do
+      d=${d%/}
+      [ -x "$d/node_modules/.bin/dsh" ] && { DSH_CMD="$d/node_modules/.bin/dsh"; break; }
+    done
+  fi
+  if [ -n "$DSH_CMD" ] && command -v pnpm >/dev/null 2>&1; then
+    echo "  执行: $DSH_CMD plugin --profile web add $SRC"
+    if "$DSH_CMD" plugin --profile web add "$SRC"; then
+      echo "  [已装] 官方 bundle 流接线成功"
+      cleanup_legacy_lines "$PATCH"
+    else
+      echo "  [回退] dsh plugin add 失败，改用复制+手动接线"
+      install_legacy || exit 1
+    fi
+  else
+    echo "  [回退] 无 dsh 或 pnpm，改用复制+手动接线"
+    install_legacy || exit 1
+  fi
 fi
 
-# ── 2/3 组合接线（web profile 用户 patch 层）────────────────────────────────
-PATCH="$HOME/.dsh/profiles/web/cordis.patch.yml"
-echo "== 2/3 组合接线 =="
-if grep -q "dsh-lan-access" "$PATCH" 2>/dev/null; then
-  echo "  [已有] $PATCH"
-elif [ "$MODE" = "--check" ]; then
-  echo "  [缺失] $PATCH 中的 lan-access 行"
-else
-  printf -- "- insert:\n    - id: lan-access\n      name: 'dsh-lan-access'\n" >> "$PATCH"
-  echo "  [已加] $PATCH"
-fi
 
 # ── 3/3 特权围栏补丁（唯一留在 node_modules 的补丁）────────────────────────
 ROOT=""
@@ -58,7 +134,7 @@ if [ -z "$ROOT" ]; then
     break
   done
 fi
-echo "== 3/3 特权围栏补丁 =="
+echo "== 2/3 特权围栏补丁 =="
 if [ -z "$ROOT" ]; then
   echo "  错误：找不到 dsh 安装目录"; exit 1
 fi

@@ -12,17 +12,17 @@ __DESCRIPTION__（dsh 插件）。
 
 ## 安装到 dsh
 
-方式一（本机开发）：复制本目录到 `~/.dsh/profiles/node_modules/`，并在
-`~/.dsh/profiles/web/cordis.patch.yml` 追加接线：
+标准组合包（bundle）：本包声明 `dsh.bundle.patch`，官方 `dsh plugin add`
+会自动 pnpm 链接并追加进 `dsh.profile.bundles` 层列表：
 
-```yaml
-- insert:
-    - id: __PLUGIN_ID__
-      name: '__PACKAGE_NAME__'
+```bash
+dsh plugin --profile web add <本包目录>
+# 或从包内 tarball 分发：bash scripts/package.sh 生成 dist/*-install.tar.gz
+# 目标机解压后 bash install.sh --restart（内部优先走官方 dsh plugin add）
 ```
 
-方式二（其他机器分发）：仓库根目录执行 `bash scripts/package.sh`，把生成的
-`dist/__PACKAGE_NAME__-install.tar.gz` 拷到目标机，解压后 `bash install.sh --restart`。
+旧式手动接线（`--patch` overlay 或 profile patch 的 insert）依然可用，
+但 bundle 流是推荐方式。
 
 ## 验证
 

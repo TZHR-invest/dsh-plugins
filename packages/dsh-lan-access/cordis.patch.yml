@@ -1,0 +1,7 @@
+# dsh-lan-access bundle 层：插入插件行。
+# 本文件由 dsh.bundle.patch 声明引用；profile 将该包列入
+# dsh.profile.bundles 时按序应用本层。name 用包名（非相对路径），
+# 由 Loader 按双锚点解析（dsh 安装目录 -> profile node_modules）。
+- insert:
+    - id: lan-access
+      name: dsh-lan-access

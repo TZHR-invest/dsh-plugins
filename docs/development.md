@@ -1,6 +1,8 @@
 # dsh 插件开发指南
 
 本仓库管理基于 [Cordis](https://github.com/cordiverse/cordis) 框架的 dsh 插件。
+**权威上游**：官方文档站 [DeepSeek Harness 开发文档](https://deepseek-harness.github.io/deepseek-harness/develop/basic/)
+（技术预览，对应最新源码；本机 0.1.0 已实测支持本文所述 bundle 机制）。
 dsh 插件分两种半区（half），可以只有其一，也可以双半齐全：
 
 | 半区 | 运行位置 | 形态 |
@@ -110,18 +112,58 @@ window.__ModuleLoader__.load({
 
 ## 5. 组合接入（如何让 dsh 加载插件）
 
-组合按层叠加（bundle → profile patch → home patch → --patch）：
+> 权威参考：官方文档 [第一个插件](https://deepseek-harness.github.io/deepseek-harness/develop/basic/)、
+> [打包与安装插件](https://deepseek-harness.github.io/deepseek-harness/develop/basic/publish)、
+> [Cordis 框架教程](https://deepseek-harness.github.io/deepseek-harness/develop/cordis-tutorial/)。
 
-1. **安装到 profile**（目标机执行）：`dsh plugin --profile web add dsh-my-plugin`（转发给 profile 的 pnpm），或直接把包复制到 `~/.dsh/profiles/node_modules/`。
-2. **接线**：在 `~/.dsh/profiles/web/cordis.patch.yml`（或 `~/.dsh/cordis.patch.yml`）追加：
+### 5.1 两个概念：组合包（bundle）与 profile
+
+- **组合包（bundle）**：附带一个配置层的 npm 包。manifest 在 package.json 的 `dsh` 键下声明：
+
+```json
+"dsh": { "bundle": { "patch": "./cordis.patch.yml" } }
+```
+
+包内 `cordis.patch.yml` 就是一层 patch（与 `--patch` overlay 同格式），区别是插件行按**包名**引用
+（不是相对源码路径），由 Loader 双锚点解析（dsh 安装目录 → profile node_modules）：
 
 ```yaml
 - insert:
     - id: my-plugin
-      name: 'dsh-my-plugin'
+      name: dsh-my-plugin
 ```
 
-3. **验证**：`dsh --profile web --dump-config` 查看组合后的配置树；重启后浏览器控制台看插件日志。
+- **profile**：`$DSH_HOME/profiles/<name>` 目录，`package.json` 的 `dsh.profile.bundles` 列出有序
+组合包。由 `dsh plugin` 自动创建和维护，无需手写。
+
+没有 `dsh.bundle` 声明的包仍可安装，但只作为普通依赖：`dsh plugin` 会警告且不激活任何层。
+
+### 5.2 官方安装流（推荐）
+
+```bash
+dsh plugin --profile web add ./dsh-my-plugin   # 相对路径自动锚定调用目录
+```
+
+首次使用自动初始化 profile（web 模板 = `@deepseek-ai/dsh-base` + `@deepseek-ai/dsh-web-app`），
+pnpm 链接该包，reconcile 时发现 `dsh.bundle` 声明即追加进 `dsh.profile.bundles`。
+`remove` 同时移除依赖与对应层。本仓库 tarball 的 `install.sh` 已优先走此流（失败回退复制+手动接线）。
+
+### 5.3 层顺序与 patch 语义（易踩坑）
+
+生效配置在空根上按序叠加：**bundles（按列表顺序）→ profile 的 cordis.patch.yml → home 级
+`$DSH_HOME/cordis.patch.yml` → 每个 `--patch` overlay（按 argv 顺序）**。
+
+- 后应用的层按行胜出，**patch 整行替换目标行的整个 `config` 值**，不是深度合并各键——
+  覆盖某行时必须重述它需要的每一个键。
+- 用户可在自己 profile 的 patch 层覆盖你的行，无需改动你的包——所以给用户大概率会保留的
+  配置提供默认值。
+- 内置组合包（`@deepseek-ai/dsh-base` 等）始终从 dsh 安装目录解析；pnpm 只管理树外包。
+
+### 5.4 验证
+
+```bash
+dsh --profile web --dump-config   # 应看到 "# == dsh-my-plugin" 层与 insert 行
+```
 
 ## 6. 本地开发与调试
 
