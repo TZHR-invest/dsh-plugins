@@ -26,7 +26,7 @@ bundle_wired() {
 }
 legacy_wired() {
   [ -f "$DST/client.js" ] && grep -q "randomUUID" "$DST/client.js" 2>/dev/null \
-    && [ -f "$PATCH" ] && grep -q "lan-access" "$PATCH"
+    && [ -f "$PATCH" ] && grep -q 'id: lan-access' "$PATCH"
 }
 
 cleanup_legacy_lines() {
