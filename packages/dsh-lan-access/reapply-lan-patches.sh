@@ -231,6 +231,7 @@ if [ "$MODE" = "--restart" ]; then
   pkill -TERM -f 'node_modules/.bin/dsh web' 2>/dev/null
   pkill -TERM -f 'npm exec @deepseek-ai/dsh web' 2>/dev/null
   pkill -TERM -f 'sh -c dsh web' 2>/dev/null
+  pkill -TERM -f 'dsh/lib/bin.js web' 2>/dev/null
   sleep 3
   cd "$ROOT" || exit 1
   setsid nohup ./node_modules/.bin/dsh web >> /tmp/dsh-web.log 2>&1 < /dev/null &
@@ -239,14 +240,14 @@ if [ "$MODE" = "--restart" ]; then
   IP=$(hostname -I 2>/dev/null | awk '{print $1}')
   TOKEN=""
   [ -f "$DSH/lan-access-token" ] && TOKEN=$(cat "$DSH/lan-access-token")
-  curl -s -o /dev/null -w '127.0.0.1:3080 页面（回环豁免，应 200）-> %{http_code}\n' http://127.0.0.1:3080/
+  curl -s --noproxy '*' -o /dev/null -w '127.0.0.1:3080 页面（回环豁免，应 200）-> %{http_code}\n' http://127.0.0.1:3080/
   if [ -n "$IP" ]; then
-    curl -s -o /dev/null -w "$IP:3080 无令牌（应 401 登录页）-> %{http_code}\n" "http://$IP:3080/"
+    curl -s --noproxy '*' -o /dev/null -w "$IP:3080 无令牌（应 401 登录页）-> %{http_code}\n" "http://$IP:3080/"
     if [ -n "$TOKEN" ]; then
-      curl -s -o /dev/null -w "$IP:3080 带令牌（应 200）-> %{http_code}\n" -H "X-DSH-Token: $TOKEN" "http://$IP:3080/"
-      curl -s -o /dev/null -w 'LAN Host settings.describe（带令牌，应非 403）-> %{http_code}\n' -H "Host: $IP:3080" -H "X-DSH-Token: $TOKEN" -X POST http://127.0.0.1:3080/api/settings.describe
+      curl -s --noproxy '*' -o /dev/null -w "$IP:3080 带令牌（应 200）-> %{http_code}\n" -H "X-DSH-Token: $TOKEN" "http://$IP:3080/"
+      curl -s --noproxy '*' -o /dev/null -w 'LAN Host settings.describe（带令牌，应非 403）-> %{http_code}\n' -H "Host: $IP:3080" -H "X-DSH-Token: $TOKEN" -X POST http://127.0.0.1:3080/api/settings.describe
     fi
   fi
-  curl -s -o /dev/null -w '插件 bundle（应 200）-> %{http_code}\n' http://127.0.0.1:3080/plugins/dsh-lan-access/client.js
+  curl -s --noproxy '*' -o /dev/null -w '插件 bundle（应 200）-> %{http_code}\n' http://127.0.0.1:3080/plugins/dsh-lan-access/client.js
   echo "== 完成 =="
 fi
