@@ -1,7 +1,7 @@
 {
   "name": "dsh-lan-access",
-  "version": "0.1.0",
-  "description": "dsh web 局域网访问支持：浏览器端 crypto.randomUUID polyfill（明文 HTTP 非安全上下文兜底）。",
+  "version": "0.2.0",
+  "description": "dsh web 局域网访问支持：crypto.randomUUID polyfill + 访问令牌验证（回环豁免）+ 特权围栏/设置持久化放行。",
   "type": "module",
   "main": "index.js",
   "exports": {
@@ -10,7 +10,9 @@
     "./package.json": "./package.json"
   },
   "dsh": {
-    "bundle": { "patch": "./cordis.patch.yml" },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
     "client": {
       "inject": [],
       "platform": "web",

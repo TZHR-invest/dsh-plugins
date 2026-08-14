@@ -6,23 +6,27 @@
 #   bash ~/.dsh/reapply-lan-patches.sh --check    # 只报告状态，不改文件
 #   bash ~/.dsh/reapply-lan-patches.sh --restart  # 补齐后重启服务并验证
 #
-# 局域网访问支持由三层组成：
+# 局域网访问支持由六层组成：
 #   1. 绑定 0.0.0.0       -> ~/.dsh/cordis.patch.yml（用户配置层，升级不丢）
 #   2. crypto.randomUUID  -> dsh-lan-access 客户端插件（用户插件层，升级不丢，
 #                            本脚本负责从 ~/.dsh/plugins 重新安装 + 接线）
-#   3. 特权围栏放行        -> node_modules 一行补丁（唯一会被升级覆盖的，本脚本重打）
+#   3. 访问令牌           -> ~/.dsh/lan-access-token（升级不丢；缺失时自动重新生成）
+#   4. 特权围栏放行        -> node_modules 一行补丁（会被升级覆盖，本脚本重打）
+#   5. 设置持久化放行      -> node_modules 一行补丁（会被升级覆盖，本脚本重打）
+#   6. 令牌门卫            -> dsh-host-webserver 入口补丁（会被升级覆盖，本脚本重打）
 set -u
 
 MODE="${1:-apply}"
+DSH="${DSH_HOME:-$HOME/.dsh}"
 
-# ── 1/3 插件安装与接线（官方 bundle 流优先，复制流回退）──────────────────
-SRC="$HOME/.dsh/plugins/dsh-lan-access"
-DST="$HOME/.dsh/profiles/node_modules/dsh-lan-access"
-PATCH="$HOME/.dsh/profiles/web/cordis.patch.yml"
-echo "== 1/3 插件安装与接线 =="
+# ── 1/6 插件安装与接线（官方 bundle 流优先，复制流回退）──────────────────
+SRC="$DSH/plugins/dsh-lan-access"
+DST="$DSH/profiles/node_modules/dsh-lan-access"
+PATCH="$DSH/profiles/web/cordis.patch.yml"
+echo "== 1/6 插件安装与接线 =="
 
 bundle_wired() {
-  [ -f "$HOME/.dsh/profiles/web/package.json" ] && grep -q '"dsh-lan-access"' "$HOME/.dsh/profiles/web/package.json"
+  [ -f "$DSH/profiles/web/package.json" ] && grep -q '"dsh-lan-access"' "$DSH/profiles/web/package.json"
 }
 legacy_wired() {
   [ -f "$DST/client.js" ] && grep -q "randomUUID" "$DST/client.js" 2>/dev/null \
@@ -78,7 +82,7 @@ install_legacy() {
   if grep -q "dsh-lan-access" "$PATCH" 2>/dev/null; then
     echo "  [已有] $PATCH"
   else
-    sed -i '/^[[:space:]]*\[\][[:space:]]*$/d' "$PATCH"
+    sed -i '/^[[:space:]]*\\[\\][[:space:]]*$/d' "$PATCH"
     printf -- "- insert:\n    - id: lan-access\n      name: 'dsh-lan-access'\n" >> "$PATCH"
     echo "  [已加] $PATCH"
   fi
@@ -118,8 +122,27 @@ else
   fi
 fi
 
+# ── 2/6 访问令牌（升级不丢；缺失时重新生成）────────────────────────────────
+TOKEN_FILE="$DSH/lan-access-token"
+echo "== 2/6 访问令牌 =="
+if [ -f "$TOKEN_FILE" ] && [ -s "$TOKEN_FILE" ]; then
+  echo "  [已有] $TOKEN_FILE"
+elif [ "$MODE" = "--check" ]; then
+  echo "  [缺失] $TOKEN_FILE（将自动生成随机令牌）"
+else
+  TOKEN=$(node -e 'console.log(require("node:crypto").randomBytes(24).toString("hex"))' 2>/dev/null || true)
+  [ -z "$TOKEN" ] && TOKEN=$(openssl rand -hex 24 2>/dev/null || true)
+  if [ -z "$TOKEN" ]; then
+    echo "  [失败] 无法生成随机令牌（需要 node 或 openssl）"
+  else
+    (umask 177; printf '%s\n' "$TOKEN" > "$TOKEN_FILE")
+    chmod 600 "$TOKEN_FILE"
+    echo "  [已生成] $TOKEN_FILE"
+    echo "  局域网访问令牌（仅显示这一次）：$TOKEN"
+  fi
+fi
 
-# ── 3/3 特权围栏补丁（唯一留在 node_modules 的补丁）────────────────────────
+# ── 3/6 特权围栏补丁（唯一留在 node_modules 的补丁）────────────────────────
 ROOT=""
 PID=$(pgrep -f 'node_modules/.bin/dsh web' 2>/dev/null | head -1)
 if [ -n "${PID:-}" ]; then
@@ -134,7 +157,7 @@ if [ -z "$ROOT" ]; then
     break
   done
 fi
-echo "== 2/3 特权围栏补丁 =="
+echo "== 3/6 特权围栏补丁 =="
 if [ -z "$ROOT" ]; then
   echo "  错误：找不到 dsh 安装目录"; exit 1
 fi
@@ -146,7 +169,7 @@ elif [ -f "$F" ]; then
   if [ "$MODE" = "--check" ]; then
     echo "  [缺失] 特权围栏"
   else
-    sed -i 's/PRIVILEGED_METHODS.has(method) && !isTrustedApiRequest(request, \[\])/PRIVILEGED_METHODS.has(method) \&\& !isTrustedApiRequest(request, trustedHosts)/' "$F"
+    sed -i 's/PRIVILEGED_METHODS.has(method) && !isTrustedApiRequest(request, [[]])/PRIVILEGED_METHODS.has(method) \&\& !isTrustedApiRequest(request, trustedHosts)/' "$F"
     if grep -q 'PRIVILEGED_METHODS.has(method) && !isTrustedApiRequest(request, trustedHosts)' "$F"; then
       echo "  [已打] 特权围栏"
     else
@@ -158,33 +181,44 @@ else
 fi
 node --check "$F" 2>/dev/null && echo "  语法 OK"
 
-# ── 4/4 设置持久化放行补丁（第 4 层：浏览器端 settingsScope 强制 host 模式）─
-echo "== 4/4 设置持久化放行补丁 =="
-if [ -z "$ROOT" ]; then
-  echo "  [跳过] 未定位 dsh 安装目录"
-elif [ ! -d "$ROOT/node_modules/@deepseek-ai" ]; then
-  echo "  [跳过] $ROOT 下无 @deepseek-ai 包，请人工确认 dsh 安装位置"
+# ── 4/6 设置持久化放行补丁（第 5 层：浏览器端 settingsScope 强制 host 模式）─
+echo "== 4/6 设置持久化放行补丁 =="
+F4="$ROOT/node_modules/@deepseek-ai/dsh-client-ui-settings/lib/client.js"
+if grep -q 'new SettingsScopeController(connection.api, spec, "host")' "$F4" 2>/dev/null; then
+  echo "  [已有] 设置持久化放行"
+elif [ ! -f "$F4" ]; then
+  echo "  [缺失] $F4（该版本可能已无此文件，请人工确认）"
+elif [ "$MODE" = "--check" ]; then
+  echo "  [缺失] 设置持久化放行"
 else
-  F4="$ROOT/node_modules/@deepseek-ai/dsh-client-ui-settings/lib/client.js"
-  if grep -q 'new SettingsScopeController(connection.api, spec, "host")' "$F4" 2>/dev/null; then
-    echo "  [已有] 设置持久化放行"
-  elif [ ! -f "$F4" ]; then
-    echo "  [缺失] $F4（该版本可能已无此文件，请人工确认）"
-    FAIL=1
-  elif [ "$MODE" = "--check" ]; then
-    echo "  [缺失] 设置持久化放行"
+  sed -i 's/connection\.isLoopback ? "host" : "memory"/"host"/' "$F4"
+  if grep -q 'new SettingsScopeController(connection.api, spec, "host")' "$F4"; then
+    echo "  [已打] 设置持久化放行（LAN 访问也可读写设置）"
   else
-    sed -i 's/connection\.isLoopback ? "host" : "memory"/"host"/' "$F4"
-    if grep -q 'new SettingsScopeController(connection.api, spec, "host")' "$F4"; then
-      echo "  [已打] 设置持久化放行（LAN 访问也可读写设置）"
-    else
-      echo "  [失败] 设置持久化放行——该版本代码结构已变化，请人工处理"
-      FAIL=1
-    fi
+    echo "  [失败] 设置持久化放行——该版本代码结构已变化，请人工处理"
   fi
-  [ -f "$F4" ] && node --check "$F4" 2>/dev/null && echo "  语法 OK"
 fi
+[ -f "$F4" ] && node --check "$F4" 2>/dev/null && echo "  语法 OK"
 
+# ── 5/6 webserver 令牌门卫补丁 ─────────────────────────────────────────────
+echo "== 5/6 webserver 令牌门卫补丁 =="
+FW="$ROOT/node_modules/@deepseek-ai/dsh-host-webserver/lib/index.js"
+if [ ! -f "$SRC/patch-webserver.mjs" ]; then
+  echo "  [缺失] $SRC/patch-webserver.mjs（插件源码不完整，请重新安装 dsh-lan-access）"
+elif [ "$MODE" = "--check" ]; then
+  if node "$SRC/patch-webserver.mjs" "$FW" --check; then
+    echo "  [已有] webserver 令牌门卫"
+  else
+    echo "  [缺失] webserver 令牌门卫"
+  fi
+else
+  if node "$SRC/patch-webserver.mjs" "$FW"; then
+    echo "  [已打] webserver 令牌门卫（LAN 未授权请求将看到 401 登录页）"
+  else
+    echo "  [失败] webserver 令牌门卫——请人工处理"
+  fi
+  [ -f "$FW" ] && node --check "$FW" 2>/dev/null && echo "  语法 OK"
+fi
 
 if [ "$MODE" = "--check" ]; then
   echo "== 检查完成（未改动任何文件）=="
@@ -202,9 +236,17 @@ if [ "$MODE" = "--restart" ]; then
   setsid nohup ./node_modules/.bin/dsh web >> /tmp/dsh-web.log 2>&1 < /dev/null &
   echo "新进程 PID=$!"
   sleep 8
-  curl -s -o /dev/null -w '127.0.0.1:3080 页面 -> %{http_code}\n' http://127.0.0.1:3080/
-  curl -s -o /dev/null -w '192.168.0.206:3080 页面 -> %{http_code}\n' http://192.168.0.206:3080/
-  curl -s -o /dev/null -w 'LAN Host settings.describe（应非 403）-> %{http_code}\n' -H "Host: 192.168.0.206:3080" -X POST http://127.0.0.1:3080/api/settings.describe
+  IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+  TOKEN=""
+  [ -f "$DSH/lan-access-token" ] && TOKEN=$(cat "$DSH/lan-access-token")
+  curl -s -o /dev/null -w '127.0.0.1:3080 页面（回环豁免，应 200）-> %{http_code}\n' http://127.0.0.1:3080/
+  if [ -n "$IP" ]; then
+    curl -s -o /dev/null -w "$IP:3080 无令牌（应 401 登录页）-> %{http_code}\n" "http://$IP:3080/"
+    if [ -n "$TOKEN" ]; then
+      curl -s -o /dev/null -w "$IP:3080 带令牌（应 200）-> %{http_code}\n" -H "X-DSH-Token: $TOKEN" "http://$IP:3080/"
+      curl -s -o /dev/null -w 'LAN Host settings.describe（带令牌，应非 403）-> %{http_code}\n' -H "Host: $IP:3080" -H "X-DSH-Token: $TOKEN" -X POST http://127.0.0.1:3080/api/settings.describe
+    fi
+  fi
   curl -s -o /dev/null -w '插件 bundle（应 200）-> %{http_code}\n' http://127.0.0.1:3080/plugins/dsh-lan-access/client.js
   echo "== 完成 =="
 fi
