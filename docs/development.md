@@ -136,3 +136,40 @@ bash scripts/new-plugin.sh my-cool-plugin "描述文字"
 ```
 
 生成 `packages/my-cool-plugin/` 后编辑实现。发布分发见 [publishing.md](publishing.md)。
+
+## 8. 防崩检查清单（必读，MR-022/023 事故教训）
+
+> 背景：memory-recall-dsh 插件曾因 manifest 契约缺失导致 dsh web **启动即崩、挂机约 3 小时**
+> （缺 `dsh.client.platform` → 插件树组合失败；浏览器端 bundle 非 classic script → HARNESS 加载失败）。
+> 下述检查已固化进本仓库工具链，新插件从脚手架生成即自带。
+
+**开发 → 安装 → 激活，按顺序过一遍：**
+
+1. **契约预检**（已集成进 `scripts/build.sh`，也可单独跑）：
+   ```bash
+   node scripts/preflight.mjs packages/<name>
+   ```
+   校验：`dsh.client.platform` 为非空字符串（web profile 只接受 `"web"`）、
+   `exports["./client"]` 存在且指向 bundle、bundle 无顶层 `import/export`
+   （classic script 要求）+ 含 `__ModuleLoader__.load` 注册 + 包名一致。
+
+2. **bundle 是生成物就配生成器**：`client.js` 勿手改，改库文件后重新生成
+   （如 memory-recall-dsh 的 `build-bundle.mjs` 模式），并跑 build.sh 防漂移。
+
+3. **全量测试**：插件自带的 `node --test` 全绿后再分发。
+
+4. **冒烟试启动**（防"启动即崩"，`install.sh --smoke`）：
+   在隔离的 headless profile 真实 boot 插件组合（约 10-30s）；命中
+   `client-modules` / `plugin tree failed` / `cannot resolve entry` 关键字
+   判定为插件问题（exit 1），正式服务不受影响。`--restart` 内置冒烟，
+   插件问题自动中止重启。
+
+5. **激活与回滚**：
+   - 在**终端**执行 `bash install.sh --restart`；⚠️ **严禁在 agent（dsh 会话）
+     内部重启宿主 dsh web 进程**——agent 就跑在宿主进程里，重启即自杀；
+   - dsh web 无 systemd/cron 托管，崩溃无人拉起（曾因此挂机 3 小时），
+     如需常驻建议补 systemd user unit（`Restart=on-failure` + `StartLimitBurst=3`）；
+   - 回滚：`bash install.sh --uninstall` + 重启 dsh。
+
+6. **装后验证**：页面 200；`/plugins/<id>/client.js` 返回 200；boot 日志无
+   `client-modules:` 报错；新会话里插件行为出现。

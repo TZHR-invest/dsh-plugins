@@ -16,10 +16,13 @@ esac
 DEST="$REPO/packages/$NAME"
 if [ -e "$DEST" ]; then echo "错误：$DEST 已存在"; exit 1; fi
 cp -r "$REPO/templates/plugin" "$DEST"
+# 安装器模板（防崩：契约预检 + headless 冒烟 + 幂等接线 + 回滚）
+cp "$REPO/templates/install.sh.template" "$DEST/install.sh"
 # 占位符替换
 for f in "$DEST"/*; do
   sed -i "s/__PACKAGE_NAME__/$NAME/g; s/__PLUGIN_ID__/$NAME/g; s|__DESCRIPTION__|$DESC|g" "$f"
 done
+bash -n "$DEST/install.sh"
 # 基本校验
 node --check "$DEST/index.js" && node --check "$DEST/client.js"
 node -e "JSON.parse(require('fs').readFileSync('$DEST/package.json','utf8'))" \
@@ -27,5 +30,5 @@ node -e "JSON.parse(require('fs').readFileSync('$DEST/package.json','utf8'))" \
 echo "== 已创建 $DEST =="
 echo "下一步:"
 echo "  1) 编辑 packages/$NAME/index.js 与 client.js 实现功能"
-echo "  2) 本地验证: bash scripts/build.sh"
+echo "  2) 本地验证: bash scripts/build.sh（含 preflight 契约预检）"
 echo "  3) 分发: bash scripts/package.sh"

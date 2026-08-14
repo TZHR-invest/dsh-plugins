@@ -23,6 +23,14 @@ for pkg in "$REPO"/packages/*/; do
   for s in install.sh reapply-lan-patches.sh; do
     [ -f "$pkg/$s" ] && { bash -n "$pkg/$s" && echo "  [OK] $s 语法" || FAIL=1; }
   done
+  # 契约预检（防 MR-022/023：dsh.client.platform / exports["./client"] / classic-script bundle）
+  if node "$REPO/scripts/preflight.mjs" "$pkg" >/dev/null 2>&1; then
+    echo "  [OK] preflight 契约预检"
+  else
+    echo "  [FAIL] preflight 契约预检"
+    node "$REPO/scripts/preflight.mjs" "$pkg" | sed 's/^/    /' || true
+    FAIL=1
+  fi
 done
 echo ""
 if [ "$FAIL" = "1" ]; then echo "存在失败项"; exit 1; else echo "全部通过"; fi
