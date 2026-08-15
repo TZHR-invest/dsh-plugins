@@ -4,7 +4,7 @@ Metaso (秘塔AI搜索) providers for the DeepSeek Harness web seam (`ctx.web`).
 
 Upgrades the built-in `web_search` / `web_fetch` tools with Metaso's search API — no new tool names to learn:
 
-- **`web_search` returns answer summaries**: Metaso's `summary` maps to the result `content` field, so the model gets an answer plus cited sources, not just a link list.
+- **`web_search` returns page summaries**: Metaso's `summary` (long) / `snippet` (short) map to each source's snippet field — the model gets excerpts plus cited URLs, not just a link list.
 - **`web_fetch` reads full pages**: Metaso `/reader` converts any web page to markdown.
 - **Dedicated retrieval endpoint**: one search = one HTTP call (≈ ¥0.03), no model turn consumed.
 - **Multi-scope search**: webpage / document / paper / image / video / podcast, via the `scope` config or a `scope:paper keywords` query prefix.

@@ -117,19 +117,38 @@ class MetasoSearchProvider {
     } catch (error) {
       throw new WebError(`Metaso returned an unprocessable response body: ${String(error)}`, "WEB_PROVIDER_ERROR", { cause: error });
     }
+    // 各 scope 的结果数组名：webpage/paper/podcast → webpages，document → documents，
+    // image → images，video → videos（Metaso 实际行为，含未文档化 scope 的回退）
+    const arrayName =
+      scope === "document" ? "documents"
+        : scope === "image" ? "images"
+          : scope === "video" ? "videos"
+            : "webpages";
     const seen = /* @__PURE__ */ new Set();
     const sources = [];
-    for (const item of data.webpages ?? []) {
+    for (const item of data[arrayName] ?? []) {
       if (typeof item.link !== "string" || item.link.length === 0 || seen.has(item.link)) continue;
       seen.add(item.link);
       sources.push({
         url: item.link,
         ...(typeof item.title === "string" && item.title.length > 0 ? { title: item.title } : {}),
-        ...(typeof item.snippet === "string" && item.snippet.length > 0 ? { snippet: item.snippet } : {}),
+        // Metaso 按 includeSummary 动态返回 summary（长摘要）或 snippet（短摘要）；
+        // image 结果仅带 thumbnail，作为片段展示
+        ...(
+          (typeof item.summary === "string" && item.summary.length > 0)
+            ? { snippet: item.summary }
+            : (typeof item.snippet === "string" && item.snippet.length > 0)
+              ? { snippet: item.snippet }
+              : (typeof item.thumbnail === "string" && item.thumbnail.length > 0)
+                ? { snippet: `缩略图: ${item.thumbnail}` }
+                : {}
+        ),
         ...(typeof item.date === "string" && item.date.length > 0 ? { publishedAt: item.date } : {}),
       });
     }
     return {
+      // Metaso /search 目前不返回顶层综合摘要（summary/snippet 在条目内）；
+      // 保留兜底映射，API 未来提供时自动生效
       ...(typeof data.summary === "string" && data.summary.length > 0 ? { content: data.summary } : {}),
       sources,
       truncated: false,

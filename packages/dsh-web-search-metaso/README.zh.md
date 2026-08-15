@@ -4,7 +4,7 @@ Metaso（秘塔AI搜索）providers for DeepSeek Harness web seam（`ctx.web`）
 
 让 dsh 自带的 `web_search` / `web_fetch` 工具直接获得秘塔能力，无需学习新工具名：
 
-- **`web_search` 带综合摘要**：秘塔的 `summary` 映射为工具返回的 `content` 字段，模型直接拿到答案 + 来源链接，不再只是链接列表；
+- **`web_search` 带网页摘要**：秘塔的 `summary`（长摘要）/ `snippet`（短摘要）映射为每条结果的片段字段，模型直接拿到摘要 + 来源链接，不再只是链接列表；
 - **`web_fetch` 读网页全文**：秘塔 `/reader` 把任意网页转成 markdown 返回，补上"只能拿到片段"的短板；
 - **纯检索端点**：一次搜索 = 一次 HTTP 调用（约 3 分钱/次），不消耗模型调用；
 - **多范围搜索**：webpage / document（文库）/ paper（学术论文）/ image / video / podcast，由配置 `scope` 决定，或在查询里用 `scope:paper 关键词` 前缀临时切换。
@@ -26,7 +26,7 @@ bash install.sh --restart          # 交互输入 Metaso API key
 
 ## 验证
 
-重启后新开会话，让 agent 执行 `web_search("DeepSeek V4 发布")`——若返回带 `content`（综合摘要）即为生效。或：
+重启后新开会话，让 agent 执行 `web_search("DeepSeek V4 发布")`——若返回的每条来源带 `snippet`（网页摘要）即为生效。或：
 
 ```bash
 curl -s https://metaso.cn/api/v1/search \
