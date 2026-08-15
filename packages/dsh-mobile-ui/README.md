@@ -42,6 +42,7 @@ Fast local iteration: copy to `~/.dsh/profiles/node_modules/dsh-mobile-ui/` and 
 
 - **CSS layer**: injects `style[data-plugin-css=dsh-mobile-ui]`, all rules wrapped in `@media (max-width:768px)` — desktop loads none of it
 - **JS layer**: `matchMedia`-driven; on narrow screens the main grid goes single-column, the sidebar is hidden and becomes a fixed overlay drawer with scrim
+- **QA card** (`ask_user_question`, Mbwy4a component): pinned with CSS to the upper screen (`position:fixed; top:100px`) so the submit button is never hidden behind browser toolbars; full-width + viewport-bounded scrollable height
 
 ## Maintenance notes (important)
 
@@ -51,6 +52,7 @@ Fast local iteration: copy to `~/.dsh/profiles/node_modules/dsh-mobile-ui/` and 
   3. Re-run `bash install.sh` after fixing
 - Layout detection uses structural heuristics ("3-column grid + 56px first column"), not hard-coded class names, and buttons prefer `aria-label` — this tolerates class-name drift
 - All DOM work is try/catch wrapped; any failure degrades silently (CSS layer still applies)
+- **Never move React-rendered DOM nodes with JS** (`insertBefore`/`appendChild` on `pXSMma_root` etc.): React's fiber tree still records the old parent, so a re-render throws `removeChild` NotFoundError and the whole conversation view unmounts (blank page). Express every layout need in CSS (flex / order / :has) — the hero title pinning and the QA card are pure CSS for this reason.
 
 ## Rollback
 
