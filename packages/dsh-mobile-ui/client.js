@@ -86,9 +86,19 @@ window.__ModuleLoader__.load({
 			/* 抽屉视觉：右侧圆角 + 更实背景 */
 			"body.dsh-mobile-ui [class*=sidebarCol].dsh-mobile-drawer{border-radius:0 18px 18px 0}",
 			/* 设置面板（VOzbGW 弹层）移动端：全宽 + 菜单收窄 + 内容区加宽 */
-			"body.dsh-mobile-ui [class*=VOzbGW_panel]{left:0 !important;right:0 !important;width:100vw !important;max-width:100vw !important;border-radius:0 !important}",
+			"body.dsh-mobile-ui [class*=VOzbGW_panel]{left:0 !important;right:0 !important;width:100vw !important;max-width:100vw !important;border-radius:0 !important;padding-bottom:64px !important;box-sizing:border-box !important}",
+			"body.dsh-mobile-ui [class*=VOzbGW_overlay]{align-items:flex-start !important;padding-top:12px !important}",
+			"body.dsh-mobile-ui [class*=VOzbGW_options]{padding-bottom:64px !important;box-sizing:border-box !important}",
 			"body.dsh-mobile-ui [class*=VOzbGW_nav]{width:110px !important;flex:0 0 110px !important}",
 			"body.dsh-mobile-ui [class*=VOzbGW_content]{flex:1 1 auto !important;min-width:0 !important;padding:0 12px !important}",
+			/* 设置行内文字全宽（防 label 列被 flex 收缩成竖排窄列） */
+			"body.dsh-mobile-ui [class*=VOzbGW_content] [class*=section]{width:100% !important;max-width:100% !important}",
+			"body.dsh-mobile-ui [class*=VOzbGW_content] [class*=row]{flex-direction:column !important;align-items:stretch !important;gap:4px !important}",
+			"body.dsh-mobile-ui [class*=VOzbGW_content] [class*=rowText]{flex:1 1 auto !important;min-width:0 !important;align-items:stretch !important}",
+			"body.dsh-mobile-ui [class*=VOzbGW_content] [class*=row] > *:last-child{flex:0 0 auto !important}",
+			"body.dsh-mobile-ui [class*=VOzbGW_content] [class*=title],body.dsh-mobile-ui [class*=VOzbGW_content] [class*=rowText]{width:100% !important;max-width:100% !important;white-space:normal !important;overflow-wrap:anywhere !important}",
+			"body.dsh-mobile-ui [class*=VOzbGW_content] [class*=title]{display:block !important;flex:1 1 auto !important;align-self:stretch !important}",
+			"body.dsh-mobile-ui [class*=VOzbGW_content] [class*=rowText]{flex:1 1 auto !important;min-width:0 !important}",
 		].join("\n");
 
 		function injectStyle() {
