@@ -71,14 +71,15 @@ window.__ModuleLoader__.load({
 			"  body.dsh-mobile-ui button[aria-label*=访问模式] span,body.dsh-mobile-ui button[aria-label*=访问模式] [class*=label]{display:none !important}",
 			"  body.dsh-mobile-ui button[aria-label*=上下文]{width:36px !important;max-width:36px !important;flex:0 0 36px !important;padding:0 !important;font-size:10px !important;justify-content:center !important;overflow:hidden !important}",
 			"  body.dsh-mobile-ui button[aria-label*=上下文] span,body.dsh-mobile-ui button[aria-label*=上下文] [class*=label]{max-width:30px !important;overflow:hidden !important;text-overflow:ellipsis !important;white-space:nowrap !important}",
-			/* 输入框圆角与内边距（视觉更圆润、输入更舒适） */
+			/* 输入框圆角与内边距（视觉更圆润、输入更舒适；卡左右加宽） */
 			"  body.dsh-mobile-ui [class*=input]{border-radius:18px !important}",
+			"  body.dsh-mobile-ui [class*=uV2eYG_root]{padding-left:8px !important;padding-right:8px !important}",
 			"  body.dsh-mobile-ui textarea{border-radius:18px !important}",
 			/* 输入卡片彻底去边框白边（border/box-shadow 全清，背景跟随主题变量） */
 			"  body.dsh-mobile-ui [class*=card]{border:none !important;box-shadow:none !important}",
 			"  body.dsh-mobile-ui [class*=uV2eYG_card],body.dsh-mobile-ui [class*=uV2eYG_input]{border:none !important;box-shadow:none !important}",
-			/* 阅读：消息流边距与间距 */
-			"  body.dsh-mobile-ui [class*=scrollBody]{padding:12px 12px 0}",
+			/* 阅读：消息流边距与间距（左右 8px，内容更宽） */
+			"  body.dsh-mobile-ui [class*=scrollBody]{padding:12px 8px 0}",
 			"  body.dsh-mobile-ui [class*=flowItem]{margin-bottom:14px}",
 			"  body.dsh-mobile-ui [class*=userBubble],body.dsh-mobile-ui [class*=bubble]{max-width:92% !important}",
 			/* 辅助文本字号提升（词根容错：actions/meta/caption/stamp/hint/tools/badge） */
