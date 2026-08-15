@@ -83,6 +83,10 @@ window.__ModuleLoader__.load({
 			"#dsh-mobile-tabbar button{position:relative}",
 			/* 抽屉视觉：右侧圆角 + 更实背景 */
 			"body.dsh-mobile-ui [class*=sidebarCol].dsh-mobile-drawer{border-radius:0 18px 18px 0}",
+			/* 设置面板（VOzbGW 弹层）移动端：全宽 + 菜单收窄 + 内容区加宽 */
+			"body.dsh-mobile-ui [class*=VOzbGW_panel]{left:0 !important;right:0 !important;width:100vw !important;max-width:100vw !important;border-radius:0 !important}",
+			"body.dsh-mobile-ui [class*=VOzbGW_nav]{width:110px !important;flex:0 0 110px !important}",
+			"body.dsh-mobile-ui [class*=VOzbGW_content]{flex:1 1 auto !important;min-width:0 !important;padding:0 12px !important}",
 		].join("\n");
 
 		function injectStyle() {
@@ -174,9 +178,47 @@ window.__ModuleLoader__.load({
 									} else if (d.key === "sessions") {
 										openDrawer();
 									} else if (d.key === "settings") {
-										var sb = document.querySelector("button[aria-label=设置]");
-										if (sb) { sb.click(); }
-										else { openDrawer(); }
+										/* 不能直接查 button[aria-label=设置]——会匹配到本导航栏自身按钮。
+										   先开抽屉（展开 sidebar），轮询抽屉内的设置入口，点开后立即关抽屉 */
+										openDrawer();
+										var tries = 0;
+										var poll = setInterval(function () {
+											tries++;
+											try {
+												var side = getSidebar();
+												if (side) {
+													var btns = side.querySelectorAll("button");
+													for (var i = 0; i < btns.length; i++) {
+														var al = btns[i].getAttribute("aria-label") || "";
+														if (al.indexOf("设置") >= 0 || btns[i].textContent.indexOf("设置") >= 0) {
+															/* sidebar 展开渲染未完成时点击会被 React 重渲染覆盖：
+															   延时后重新查询再点击（元素引用可能已失效）。
+															   设置弹层渲染在 sidebar 内部——抽屉必须保持打开，
+															   只隐藏 scrim 防双重遮罩变暗 */
+															clearInterval(poll);
+															setTimeout(function () {
+																try {
+																	var s2 = getSidebar();
+																	if (s2) {
+																		var bs = s2.querySelectorAll("button");
+																		for (var j = 0; j < bs.length; j++) {
+																			var al2 = bs[j].getAttribute("aria-label") || "";
+																			if (al2.indexOf("设置") >= 0 || bs[j].textContent.indexOf("设置") >= 0) {
+																				bs[j].click();
+																				if (scrim) scrim.classList.remove("dsh-mobile-visible");
+																				break;
+																			}
+																		}
+																	}
+																} catch (e) { /* 忽略 */ }
+															}, 450);
+															return;
+														}
+													}
+												}
+											} catch (e) { clearInterval(poll); return; }
+											if (tries > 12) clearInterval(poll); /* 2.4s 后放弃，抽屉保持打开 */
+										}, 200);
 									}
 								} catch (e) { /* 入口转发失败静默 */ }
 							});
