@@ -74,10 +74,18 @@ window.__ModuleLoader__.load({
 		/* QA 问答卡片（Mbwy4a）移动端适配：全屏弹层（与设置面板同构）——
 		   seat 固定铺满视口 + 内部滚动，footer（跳过/提交）sticky 钉屏幕底部。
 		   任何设备/视口/系统字体下提交按钮都必然可见；QA 关闭后自动恢复 */
-		"  body.dsh-mobile-ui [class*=composerSeat]:has([class*=Mbwy4a_frame]){position:fixed !important;inset:0 !important;margin:0 !important;z-index:2147482999 !important;padding:16px !important;background:var(--dsw-alias-bg-base,rgba(18,18,22,.98)) !important;overflow-y:auto !important}",
+		"  body.dsh-mobile-ui [class*=composerSeat].dsh-mobile-qa{position:fixed !important;top:100px !important;left:8px !important;right:8px !important;bottom:auto !important;margin:0 !important;z-index:2147482999 !important;padding:12px !important;max-height:calc(100vh - 150px) !important;max-height:calc(100dvh - 150px) !important;overflow-y:auto !important;background:transparent !important}",
 			"  body.dsh-mobile-ui [class*=Mbwy4a_card]{width:100% !important;max-width:none !important}",
 			"  body.dsh-mobile-ui [class*=Mbwy4a_body]{overflow:visible !important}",
 			"  body.dsh-mobile-ui [class*=Mbwy4a_footer]{position:sticky !important;bottom:0 !important;background:var(--dsw-alias-bg-layer-1,rgb(44,44,46)) !important}",
+			/* QA footer 防溢出：内容超宽时换行（跳过/提交换行后仍可见，提交永不被裁） */
+			"  body.dsh-mobile-ui [class*=Mbwy4a_footer]{flex-wrap:wrap !important;row-gap:4px !important}",
+			"  body.dsh-mobile-ui [class*=Mbwy4a_footer] [class*=footerActions]{flex-wrap:wrap !important;min-width:0 !important}",
+			"  body.dsh-mobile-ui [class*=Mbwy4a_footer] button{flex:0 1 auto !important;min-width:0 !important;font-size:12px !important;padding:0 8px !important}",
+			"  body.dsh-mobile-ui [class*=Mbwy4a_footer] [class*=iconButton]{flex:0 0 44px !important}",
+			"  body.dsh-mobile-ui [class*=Mbwy4a_footer] [class*=progress]{flex:0 1 auto !important;min-width:0 !important}",
+			"  body.dsh-mobile-ui [class*=Mbwy4a_pager]{flex:0 1 auto !important;min-width:0 !important}",
+			"  body.dsh-mobile-ui [class*=Mbwy4a_footer] button[class*=_primary]{flex:0 0 auto !important}",
 			/* 操作行单行紧凑：hero 4 元素 / 会话页 5 元素（含上下文按钮）一行放下。
 			   权限按钮移动端图标模式（44px 隐藏文字防撑宽），上下文紧凑 36px，
 			   模型选择器 127px 居中显示（轻微截断可接受） */
@@ -292,6 +300,18 @@ window.__ModuleLoader__.load({
 								}
 							}
 							document.body.classList.add("dsh-mobile-ui");
+							/* QA 弹层标记：JS 检测 Mbwy4a 卡片（不依赖 :has，兼容微信 X5 等旧内核）。
+							   加 class 到 composerSeat，CSS 据此全屏化；卡片消失即移除 */
+							try {
+								var qaFrame = document.querySelector("[class*=Mbwy4a_frame]");
+								var qaSeat = null;
+								if (qaFrame) {
+									var qn = qaFrame.parentElement;
+									while (qn) { if ((typeof qn.className === "string" ? qn.className : "").indexOf("composerSeat") >= 0) { qaSeat = qn; break; } qn = qn.parentElement; }
+								}
+								if (qaSeat) qaSeat.classList.add("dsh-mobile-qa");
+								else { var qOld = document.querySelector("[class*=composerSeat].dsh-mobile-qa"); if (qOld) qOld.classList.remove("dsh-mobile-qa"); }
+							} catch (e) { /* QA 标记失败静默 */ }
 							/* hero 标题置顶改由纯 CSS 实现（composerHero 撑满视口 + 输入卡沉底），
 							   不再用 insertBefore 搬动 React 节点——移动节点会导致 React 重渲染
 							   removeChild 抛 NotFoundError，整个会话视图卸载（页面空白） */

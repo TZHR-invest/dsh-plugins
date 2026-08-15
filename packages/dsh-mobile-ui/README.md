@@ -42,7 +42,7 @@ Fast local iteration: copy to `~/.dsh/profiles/node_modules/dsh-mobile-ui/` and 
 
 - **CSS layer**: injects `style[data-plugin-css=dsh-mobile-ui]`, all rules wrapped in `@media (max-width:768px)` — desktop loads none of it
 - **JS layer**: `matchMedia`-driven; on narrow screens the main grid goes single-column, the sidebar is hidden and becomes a fixed overlay drawer with scrim
-- **QA card** (`ask_user_question`, Mbwy4a component): pinned with CSS to the upper screen (`position:fixed; top:100px`) so the submit button is never hidden behind browser toolbars; full-width + viewport-bounded scrollable height
+- **QA card** (`ask_user_question`, Mbwy4a component): JS detects the card and pins it as a floating panel (`position:fixed; top:100px`) — no `:has()` dependency (works in WeChat/X5-style engines); the footer button row wraps when narrow, so the submit button is always visible; conversation stays visible below
 
 ## Maintenance notes (important)
 
