@@ -54,6 +54,19 @@ memory-recall-dsh 属于 **memory-recall 项目**（后端 + 测试连真实后�
   激活 `bash install.sh --restart`（内置 headless 冒烟，插件问题自动中止）
 - 后端地址由安装时配置（自部署远程服务器，不固定）
 
+dshmarket（DSH 可视化插件市场）属于 **dsh-market 项目**
+（[github.com/dsh-market/dsh-market](https://github.com/dsh-market/dsh-market)，作者 fkysly，npm 包 `dshmarket`），
+本仓库同样**不复制其代码**（双源会漂移），仅登记入口：
+
+- 用途：设置页内浏览/搜索 300+ 社区插件（数据源 awesome-dsh-plugin.com/plugins.json）、
+  一键安装/更新/卸载、主题切换；自带安装后验证（broken 包自动移除，防下次启动崩溃）
+- 版本：1.5.0（MIT，零运行时依赖，peer 仅为 type-only 引用）
+- 安装：`dsh plugin --profile web add dshmarket`（官方 CLI，转发 pnpm add，自动写入
+  `dsh.profile.bundles`）；激活需重启 dsh web，入口在 设置 → 插件市场
+- 升级/回滚：`dsh plugin --profile web update dshmarket` / `... remove dshmarket` + 重启
+- 注意：UI 内"一键重启"默认开启（环回直连 + 同源校验 + 脱离式重放启动命令）；
+  本机 dsh web 无进程托管，建议终端手动重启或配置 `allowRestart: false`
+
 ## 文档
 
 - [开发指南](docs/development.md)：Host/Client 插件机制、package.json 规范、组合接线、调试

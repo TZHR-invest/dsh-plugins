@@ -33,6 +33,7 @@ dsh plugin --profile web add dsh-mobile-ui
 ## External plugins (registered only, not copied)
 
 - **memory-recall-dsh** — long-term memory plugin (6 tools + auto recall injection + auto capture). Code lives in the `memory_recall` repo (`apps/api/src/plugins/dsh/`); this repo only links it to avoid source drift. Requires a self-deployed backend.
+- **dshmarket** — visual plugin market inside the Web GUI (browse/search/install/update/uninstall 300+ community plugins, themes). Upstream: [dsh-market/dsh-market](https://github.com/dsh-market/dsh-market) (npm `dshmarket`, MIT, zero runtime deps); registered here only, not copied. Install: `dsh plugin --profile web add dshmarket`, then restart `dsh web`; entry at Settings → Plugin Market. Note: its in-UI one-click restart (loopback + same-origin guarded) is enabled by default — on hosts without a supervisor, prefer a manual terminal restart or set `allowRestart: false`.
 
 ## License
 
