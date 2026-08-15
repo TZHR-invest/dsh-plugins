@@ -53,6 +53,10 @@ window.__ModuleLoader__.load({
 			/* 触摸目标：composer 区按钮/触发器 ≥44px（iOS HIG） */
 			"  body.dsh-mobile-ui [class*=composerSeat] button,body.dsh-mobile-ui [class*=composerStack] button{min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center}",
 			"  body.dsh-mobile-ui [class*=composerSeat] [class*=trigger],body.dsh-mobile-ui [class*=composerStack] [class*=trigger]{min-height:40px}",
+			/* 统计行（LLM 用时/首token）允许换行防截断（分段 nowrap 片段的父容器） */
+			"  body.dsh-mobile-ui [class*=composerStack] > *,body.dsh-mobile-ui [class*=composerSeat] > *{white-space:normal !important;overflow-wrap:anywhere !important}",
+			/* 抽屉会话列表项触摸目标 44px */
+			"  body.dsh-mobile-ui [class*=sidebarCol] [class*=listArea] button{min-height:44px !important}",
 			/* 输入框圆角与内边距（视觉更圆润、输入更舒适） */
 			"  body.dsh-mobile-ui [class*=input]{border-radius:18px !important}",
 			"  body.dsh-mobile-ui textarea{border-radius:18px !important}",
