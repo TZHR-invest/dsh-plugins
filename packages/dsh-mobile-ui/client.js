@@ -71,7 +71,9 @@ window.__ModuleLoader__.load({
 			/* 头部标题允许换行（防截断） */
 			"  body.dsh-mobile-ui [class*=header] [class*=title],body.dsh-mobile-ui [class*=crumbs]{white-space:normal;overflow-wrap:anywhere}",
 			/* 输入框聚焦反馈 */
-			"  body.dsh-mobile-ui textarea:focus,body.dsh-mobile-ui [class*=input]:focus-within{outline:none;box-shadow:0 0 0 2px var(--dsw-alias-brand-primary,rgba(79,124,255,.45))}",,
+			"  body.dsh-mobile-ui textarea:focus,body.dsh-mobile-ui [class*=input]:focus-within{outline:none;box-shadow:0 0 0 2px var(--dsw-alias-brand-primary,rgba(79,124,255,.45))}",
+			/* 消息流操作按钮（复制/反馈/分享）触摸目标提升 */
+			"  body.dsh-mobile-ui [class*=scrollBody] [class*=actions] button,body.dsh-mobile-ui [class*=scrollBody] [class*=tools] button{min-width:36px;min-height:36px;display:inline-flex;align-items:center;justify-content:center}",,
 			"}",
 			/* 底部导航栏（移动端）增强样式 */
 			"#dsh-mobile-tabbar{position:fixed;left:0;right:0;bottom:0;z-index:2147483000;display:none;height:calc(58px + env(safe-area-inset-bottom,0px));padding-bottom:env(safe-area-inset-bottom,0px);align-items:stretch;background:var(--dsw-alias-bg-layer-1,rgba(22,23,27,.96));backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-top:1px solid var(--dsw-alias-border-l2,rgba(255,255,255,.14));box-shadow:0 -4px 20px rgba(0,0,0,.25)}",
@@ -228,12 +230,23 @@ window.__ModuleLoader__.load({
 					document.body.appendChild(tabbar);
 				}
 
+				function setTabActive(key) {
+					try {
+						if (!tabbar) return;
+						var btns = tabbar.querySelectorAll("button");
+						for (var i = 0; i < btns.length; i++) {
+							if (btns[i].getAttribute("aria-label") === key) btns[i].classList.add("dsh-mobile-active");
+							else btns[i].classList.remove("dsh-mobile-active");
+						}
+					} catch (e) { /* 忽略 */ }
+				}
 				function openDrawer() {
 					var side = getSidebar();
 					if (!side) return;
 					side.classList.add("dsh-mobile-drawer");
 					if (scrim) scrim.classList.add("dsh-mobile-visible");
 					drawerOpen = true;
+					setTabActive("会话");
 					/* 折叠态 sidebar 只有图标 rail，展开以显示会话列表 */
 					var tog = findSidebarButton("打开侧边栏");
 					if (tog) { try { tog.click(); } catch (e) {} }
@@ -243,6 +256,7 @@ window.__ModuleLoader__.load({
 					if (side) side.classList.remove("dsh-mobile-drawer");
 					if (scrim) scrim.classList.remove("dsh-mobile-visible");
 					drawerOpen = false;
+					setTabActive("");
 				}
 
 				function sync() {
