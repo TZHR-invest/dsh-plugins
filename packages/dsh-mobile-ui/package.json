@@ -1,0 +1,20 @@
+{
+  "name": "dsh-mobile-ui",
+  "version": "0.1.0",
+  "description": "dsh web 移动端 UI 优化：响应式布局 + 底部导航 + 阅读/触摸增强（≤768px 生效，桌面不受影响）",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": {
+      "inject": [],
+      "platform": "web",
+      "immediately": true
+    }
+  }
+}
