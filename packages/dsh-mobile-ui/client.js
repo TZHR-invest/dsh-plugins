@@ -114,7 +114,8 @@ window.__ModuleLoader__.load({
 			"body.dsh-mobile-ui [class*=uV2eYG_trailing]{gap:2px !important}",
 			/* 会话页（有上下文按钮）：上下文 margin-left 右移 12px（只扩模型↔上下文间距） */
 			"body.dsh-mobile-ui [class*=uV2eYG_trailing]:has(button[aria-label*=上下文]) button[aria-label*=上下文]{margin-left:12px !important}",
-			"body.dsh-mobile-ui [class*=VOzbGW_nav]{width:110px !important;flex:0 0 110px !important;min-width:110px !important;overflow:hidden !important}",
+			"body.dsh-mobile-ui [class*=VOzbGW_nav]{width:110px !important;flex:0 0 110px !important;min-width:110px !important;overflow:visible !important}",
+			"body.dsh-mobile-ui [class*=VOzbGW_nav] [class*=navList]{flex:1 1 auto !important;height:auto !important;max-height:none !important;overflow-y:auto !important}",
 			"body.dsh-mobile-ui [class*=VOzbGW_content]{flex:1 1 auto !important;min-width:0 !important;max-width:calc(100% - 110px) !important;padding:0 12px !important;overflow:hidden !important}",
 			/* 头部防重叠加固：关闭按钮固定右侧 + 打开配置文件允许收缩 */
 			"body.dsh-mobile-ui [class*=VOzbGW_header]{display:flex !important;align-items:center !important;justify-content:flex-end !important;gap:8px !important;padding:0 12px !important}",
