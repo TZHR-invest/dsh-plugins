@@ -97,9 +97,16 @@ window.__ModuleLoader__.load({
 			/* 输入框聚焦反馈 */
 			"  body.dsh-mobile-ui textarea:focus,body.dsh-mobile-ui [class*=input]:focus-within{outline:none;box-shadow:0 0 0 2px var(--dsw-alias-brand-primary,rgba(79,124,255,.45))}",
 			/* 消息流操作按钮（复制/反馈/分享）触摸目标提升 */
-			"  body.dsh-mobile-ui [class*=scrollBody] [class*=actions] button,body.dsh-mobile-ui [class*=scrollBody] [class*=tools] button{min-width:36px;min-height:36px;display:inline-flex;align-items:center;justify-content:center}",,
+			"  body.dsh-mobile-ui [class*=scrollBody] [class*=actions] button,body.dsh-mobile-ui [class*=scrollBody] [class*=tools] button{min-width:36px;min-height:36px;display:inline-flex;align-items:center;justify-content:center}",
 			"}",
 
+			/* 320px 小屏: 操作行进一步压缩防重叠 */
+			"@media (max-width:360px){",
+			"  body.dsh-mobile-ui button[aria-label*=选择模型]{max-width:110px !important}",
+			"  body.dsh-mobile-ui [class*=uV2eYG_row]{gap:2px !important}",
+			"  body.dsh-mobile-ui [class*=uV2eYG_tools],body.dsh-mobile-ui [class*=uV2eYG_modes]{gap:2px !important}",
+			"  body.dsh-mobile-ui button[aria-label*=上下文]{margin-left:8px !important}",
+			"}",
 			/* 抽屉视觉：右侧圆角 + 更实背景 */
 			"body.dsh-mobile-ui [class*=sidebarCol].dsh-mobile-drawer{border-radius:0 18px 18px 0;padding-bottom:64px !important;box-sizing:border-box !important}",
 			/* 设置面板（VOzbGW 弹层）移动端：全宽 + 菜单收窄 + 内容区加宽 */
