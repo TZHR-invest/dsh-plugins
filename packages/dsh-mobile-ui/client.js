@@ -57,9 +57,15 @@ window.__ModuleLoader__.load({
 			"  body.dsh-mobile-ui [class*=composerStack] > *,body.dsh-mobile-ui [class*=composerSeat] > *{white-space:normal !important;overflow-wrap:anywhere !important}",
 			/* 抽屉会话列表项触摸目标 44px */
 			"  body.dsh-mobile-ui [class*=sidebarCol] [class*=listArea] button{min-height:44px !important}",
+			/* hero 布局：内容靠上、输入框贴底（防页面中部悬空 372px 空白） */
+			"  body.dsh-mobile-ui [class*=scrollBody]{justify-content:flex-start !important}",
+			"  body.dsh-mobile-ui [class*=composerSeat]{margin-top:auto !important}",
+			"  body.dsh-mobile-ui [class*=composerSeat] [class*=uV2eYG_root]{margin-top:auto !important}",
 			/* 输入框圆角与内边距（视觉更圆润、输入更舒适） */
 			"  body.dsh-mobile-ui [class*=input]{border-radius:18px !important}",
 			"  body.dsh-mobile-ui textarea{border-radius:18px !important}",
+			/* 输入卡片去白边（1px rgba(255,255,255,.06) 在深色下成弧线） */
+			"  body.dsh-mobile-ui [class*=card]{border-color:transparent !important;box-shadow:none !important}",
 			/* 阅读：消息流边距与间距 */
 			"  body.dsh-mobile-ui [class*=scrollBody]{padding:12px 12px 0}",
 			"  body.dsh-mobile-ui [class*=flowItem]{margin-bottom:14px}",
@@ -132,6 +138,7 @@ window.__ModuleLoader__.load({
 				var tabbar = null;
 				var scrim = null;
 				var drawerOpen = false;
+				var settingsOpen = false;   /* 设置弹层打开标志（弹层关闭时恢复导航栏） */
 				var savedGrid = null;   /* 窄屏前的 frame 原始 grid（宽屏恢复用） */
 
 				/* 主布局 frame：display:grid 的顶层容器（CSS 生效前 3 列 / 生效后 1 列均可） */
@@ -224,6 +231,8 @@ window.__ModuleLoader__.load({
 																			if (al2.indexOf("设置") >= 0 || bs[j].textContent.indexOf("设置") >= 0) {
 																				bs[j].click();
 																				if (scrim) scrim.classList.remove("dsh-mobile-visible");
+																				if (tabbar) tabbar.style.display = "none";
+																				settingsOpen = true;
 																				break;
 																			}
 																		}
@@ -262,6 +271,8 @@ window.__ModuleLoader__.load({
 					side.classList.add("dsh-mobile-drawer");
 					if (scrim) scrim.classList.add("dsh-mobile-visible");
 					drawerOpen = true;
+					/* 抽屉/设置模态打开时隐藏底部导航栏（避免双层级干扰） */
+					if (tabbar) tabbar.style.display = "none";
 					setTabActive("会话");
 					/* 折叠态 sidebar 只有图标 rail，展开以显示会话列表 */
 					var tog = findSidebarButton("打开侧边栏");
@@ -272,12 +283,22 @@ window.__ModuleLoader__.load({
 					if (side) side.classList.remove("dsh-mobile-drawer");
 					if (scrim) scrim.classList.remove("dsh-mobile-visible");
 					drawerOpen = false;
+					settingsOpen = false;
 					setTabActive("");
+					if (tabbar) tabbar.style.display = "";
 				}
 
 				function sync() {
 					try {
 						if (mq.matches) {
+							/* 设置弹层关闭检测：设置模式但弹层已消失 → 关闭抽屉恢复导航 */
+							if (settingsOpen) {
+								var ov = document.querySelector("[class*=VOzbGW_overlay]");
+								if (!ov || getComputedStyle(ov).display === "none") {
+									settingsOpen = false;
+									closeDrawer();
+								}
+							}
 							document.body.classList.add("dsh-mobile-ui");
 							var frame = findFrame();
 							if (frame) {
@@ -288,7 +309,7 @@ window.__ModuleLoader__.load({
 							/* 抽屉态下 sidebar 保持可见，否则隐藏 */
 							side.style.display = drawerOpen ? "" : "none";
 							ensureChrome();
-							if (tabbar) tabbar.style.display = "";
+							if (tabbar) tabbar.style.display = drawerOpen ? "none" : "";
 						} else {
 							document.body.classList.remove("dsh-mobile-ui");
 							var frame2 = findFrame();
