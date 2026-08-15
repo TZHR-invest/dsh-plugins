@@ -106,6 +106,8 @@ window.__ModuleLoader__.load({
 			"body.dsh-mobile-ui [class*=VOzbGW_panel]{max-height:calc(100vh - 92px) !important}",
 			"body.dsh-mobile-ui [class*=VOzbGW_content],body.dsh-mobile-ui [class*=VOzbGW_options]{flex:1 1 auto !important;min-height:0 !important;max-height:none !important;overflow-y:auto !important}",
 			"body.dsh-mobile-ui [class*=VOzbGW_options]{padding-bottom:64px !important;box-sizing:border-box !important}",
+			/* 模型选择菜单居中锚定（原 left:-150 固定值，按钮靠左时会出屏幕左侧） */
+			"body.dsh-mobile-ui [class*=_7KE1Ra_menu]{left:50% !important;transform:translateX(-50%) !important;min-width:250px !important;max-width:calc(100vw - 24px) !important}",
 			"body.dsh-mobile-ui [class*=VOzbGW_nav]{width:110px !important;flex:0 0 110px !important}",
 			"body.dsh-mobile-ui [class*=VOzbGW_content]{flex:1 1 auto !important;min-width:0 !important;padding:0 12px !important}",
 			/* 设置行内文字全宽（防 label 列被 flex 收缩成竖排窄列） */
