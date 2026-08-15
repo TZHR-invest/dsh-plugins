@@ -66,7 +66,7 @@ window.__ModuleLoader__.load({
 			"  body.dsh-mobile-ui [class*=uV2eYG_row] > *{flex:0 1 auto !important}",
 			"  body.dsh-mobile-ui [class*=uV2eYG_tools],body.dsh-mobile-ui [class*=uV2eYG_modes]{padding:0 !important;gap:4px !important}",
 			"  body.dsh-mobile-ui [class*=uV2eYG_row] [class*=trigger]{display:flex !important;align-items:center !important;line-height:1.2 !important}",
-			"  body.dsh-mobile-ui button[aria-label*=选择模型]{display:flex !important;align-items:center !important;justify-content:center !important;flex:0 0 auto !important;max-width:100px !important;font-size:11px !important;padding:0 6px !important;overflow:hidden !important;text-overflow:ellipsis !important;white-space:nowrap !important}",
+			"  body.dsh-mobile-ui button[aria-label*=选择模型]{display:flex !important;align-items:center !important;justify-content:center !important;flex:0 0 auto !important;max-width:130px !important;font-size:11px !important;padding:0 6px !important;overflow:hidden !important;text-overflow:ellipsis !important;white-space:nowrap !important}",
 			"  body.dsh-mobile-ui button[aria-label*=访问模式]{width:44px !important;flex:0 0 44px !important;padding:0 !important;justify-content:center !important}",
 			"  body.dsh-mobile-ui button[aria-label*=访问模式] span,body.dsh-mobile-ui button[aria-label*=访问模式] [class*=label]{display:none !important}",
 			"  body.dsh-mobile-ui button[aria-label*=上下文]{width:36px !important;max-width:36px !important;flex:0 0 36px !important;padding:0 !important;font-size:10px !important;justify-content:center !important;overflow:hidden !important}",
@@ -108,6 +108,8 @@ window.__ModuleLoader__.load({
 			"body.dsh-mobile-ui [class*=VOzbGW_options]{padding-bottom:64px !important;box-sizing:border-box !important}",
 			/* 模型选择菜单居中锚定（原 left:-150 固定值，按钮靠左时会出屏幕左侧） */
 			"body.dsh-mobile-ui [class*=_7KE1Ra_menu]{left:50% !important;transform:translateX(-50%) !important;min-width:250px !important;max-width:calc(100vw - 24px) !important}",
+			/* 上下文按钮右移：trailing 内间距加大（模型↔上下文 4px→8px） */
+			"body.dsh-mobile-ui [class*=uV2eYG_trailing]{gap:8px !important}",
 			"body.dsh-mobile-ui [class*=VOzbGW_nav]{width:110px !important;flex:0 0 110px !important}",
 			"body.dsh-mobile-ui [class*=VOzbGW_content]{flex:1 1 auto !important;min-width:0 !important;padding:0 12px !important}",
 			/* 设置行内文字全宽（防 label 列被 flex 收缩成竖排窄列） */
