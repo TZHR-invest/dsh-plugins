@@ -31,6 +31,8 @@ window.__ModuleLoader__.load({
 			"#dsh-mobile-scrim.dsh-mobile-visible{display:block;opacity:1}",
 			/* 会话抽屉（sidebar 变身 overlay） */
 			"body.dsh-mobile-ui [class*=sidebarCol].dsh-mobile-drawer{display:block !important;position:fixed !important;top:0;left:0;bottom:0;width:min(84vw,320px) !important;z-index:2147482995;box-shadow:4px 0 24px rgba(0,0,0,.35);overflow-y:auto;animation:dsh-mobile-drawer-in .18s ease}",
+			/* 设置弹层打开时：抽屉释放宽度/overflow 约束（弹层 100vw 全屏，不被抽屉裁剪） */
+			"body.dsh-mobile-ui [class*=sidebarCol].dsh-mobile-settings-open{overflow:visible !important;width:100vw !important;max-width:100vw !important;box-shadow:none !important}",
 			"@keyframes dsh-mobile-drawer-in{from{transform:translateX(-16px);opacity:0}to{transform:none;opacity:1}}",
 			/* 移动端规则 */
 			"@media (max-width:768px){",
@@ -101,11 +103,11 @@ window.__ModuleLoader__.load({
 			/* 抽屉视觉：右侧圆角 + 更实背景 */
 			"body.dsh-mobile-ui [class*=sidebarCol].dsh-mobile-drawer{border-radius:0 18px 18px 0;padding-bottom:64px !important;box-sizing:border-box !important}",
 			/* 设置面板（VOzbGW 弹层）移动端：全宽 + 菜单收窄 + 内容区加宽 */
-			"body.dsh-mobile-ui [class*=VOzbGW_panel]{left:0 !important;right:0 !important;width:100vw !important;max-width:100vw !important;border-radius:0 !important;padding-bottom:64px !important;box-sizing:border-box !important}",
-			"body.dsh-mobile-ui [class*=VOzbGW_overlay]{align-items:flex-start !important;padding-top:12px !important;padding-bottom:70px !important;box-sizing:border-box !important}",
-			"body.dsh-mobile-ui [class*=VOzbGW_panel]{max-height:calc(100vh - 92px) !important}",
+			"body.dsh-mobile-ui [class*=VOzbGW_panel]{left:0 !important;right:0 !important;width:100vw !important;max-width:100vw !important;border-radius:0 !important;box-sizing:border-box !important}",
+			"body.dsh-mobile-ui [class*=VOzbGW_overlay]{align-items:flex-start !important;padding-top:12px !important;padding-bottom:12px !important;box-sizing:border-box !important}",
+			"body.dsh-mobile-ui [class*=VOzbGW_panel]{max-height:calc(100vh - 24px) !important}",
 			"body.dsh-mobile-ui [class*=VOzbGW_content],body.dsh-mobile-ui [class*=VOzbGW_options]{flex:1 1 auto !important;min-height:0 !important;max-height:none !important;overflow-y:auto !important}",
-			"body.dsh-mobile-ui [class*=VOzbGW_options]{padding-bottom:64px !important;box-sizing:border-box !important}",
+			"body.dsh-mobile-ui [class*=VOzbGW_options]{padding-bottom:16px !important;box-sizing:border-box !important}",
 			/* 模型选择菜单居中锚定（原 left:-150 固定值，按钮靠左时会出屏幕左侧） */
 			"body.dsh-mobile-ui [class*=_7KE1Ra_menu]{left:50% !important;transform:translateX(-50%) !important;min-width:250px !important;max-width:calc(100vw - 24px) !important}",
 			/* trailing 基础 gap 2px：hero（无上下文）模型右扩吃 gap，左缘保持不变 */
@@ -229,7 +231,10 @@ window.__ModuleLoader__.load({
 				}
 				function closeDrawer() {
 					var side = getSidebar();
-					if (side) side.classList.remove("dsh-mobile-drawer");
+					if (side) {
+						side.classList.remove("dsh-mobile-drawer");
+						side.classList.remove("dsh-mobile-settings-open");
+					}
 					if (scrim) scrim.classList.remove("dsh-mobile-visible");
 					drawerOpen = false;
 					settingsOpen = false;
@@ -240,12 +245,21 @@ window.__ModuleLoader__.load({
 				function sync() {
 					try {
 						if (mq.matches) {
-							/* 设置弹层关闭检测：设置模式但弹层已消失 → 关闭抽屉恢复导航 */
-							if (settingsOpen) {
-								var ov = document.querySelector("[class*=VOzbGW_overlay]");
-								if (!ov || getComputedStyle(ov).display === "none") {
+							/* 设置弹层状态检测：出现（用户手动点抽屉设置）→ 释放抽屉约束 + 隐藏菜单；
+							   消失 → 恢复抽屉/菜单 */
+							{
+								var ov2 = document.querySelector("[class*=VOzbGW_overlay]");
+								var ovVisible = ov2 && getComputedStyle(ov2).display !== "none";
+								if (ovVisible && !settingsOpen) {
+									settingsOpen = true;
+									var sd = getSidebar();
+									if (sd) sd.classList.add("dsh-mobile-settings-open");
+									if (tabbar) tabbar.style.display = "none";
+								} else if (!ovVisible && settingsOpen) {
 									settingsOpen = false;
-									closeDrawer();
+									var sd2 = getSidebar();
+									if (sd2) sd2.classList.remove("dsh-mobile-settings-open");
+									if (tabbar) tabbar.style.display = "";
 								}
 							}
 							document.body.classList.add("dsh-mobile-ui");
