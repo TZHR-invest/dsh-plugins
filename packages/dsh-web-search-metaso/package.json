@@ -1,0 +1,15 @@
+{
+  "name": "dsh-web-search-metaso",
+  "version": "0.1.0",
+  "description": "Metaso (秘塔AI搜索) providers for the DeepSeek Harness web seam: web_search returns answer summaries, web_fetch reads full page markdown",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" }
+  },
+  "license": "MIT"
+}
