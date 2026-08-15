@@ -22,12 +22,10 @@ window.__ModuleLoader__.load({
 		/* ═══════════════════ CSS 层 ═══════════════════ */
 		var MOBILE_CSS = [
 			"/* dsh-mobile-ui 移动端增强（≤768px 生效，桌面不受影响） */",
-			/* 底部导航栏 */
-			"#dsh-mobile-tabbar{position:fixed;left:0;right:0;bottom:0;z-index:2147483000;display:none;height:calc(52px + env(safe-area-inset-bottom,0px));padding-bottom:env(safe-area-inset-bottom,0px);align-items:stretch;background:var(--dsw-alias-bg-overlay,rgba(16,17,20,.92));backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--dsw-alias-border-l2,rgba(255,255,255,.12));box-shadow:0 -4px 16px rgba(0,0,0,.18)}",
-			"#dsh-mobile-tabbar button{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:48px;background:none;border:none;color:var(--dsw-alias-label-secondary,rgba(255,255,255,.62));font-size:11px;line-height:1;cursor:pointer;padding:6px 0 2px}",
-			"#dsh-mobile-tabbar button svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}",
-			"#dsh-mobile-tabbar button:active{opacity:.7}",
-			"#dsh-mobile-tabbar button.dsh-mobile-active{color:var(--dsw-alias-brand-primary,#4f7cff)}",
+			/* 右上角菜单按钮（入口：打开会话抽屉——抽屉内含新建/会话列表/设置） */
+			"#dsh-mobile-menu-btn{position:fixed;top:calc(48px + env(safe-area-inset-top,0px));right:12px;z-index:2147483000;display:none;width:42px;height:42px;border-radius:50%;background:var(--dsw-alias-bg-layer-1,rgba(22,23,27,.94));border:1px solid var(--dsw-alias-border-l2,rgba(255,255,255,.14));color:var(--dsw-alias-label-primary,rgba(255,255,255,.88));align-items:center;justify-content:center;cursor:pointer;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:0 2px 12px rgba(0,0,0,.3);transition:transform .12s ease}",
+			"#dsh-mobile-menu-btn:active{transform:scale(.92)}",
+			"#dsh-mobile-menu-btn svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}",
 			/* 抽屉遮罩 */
 			"#dsh-mobile-scrim{position:fixed;inset:0;z-index:2147482990;background:rgba(0,0,0,.55);display:none;opacity:0;transition:opacity .2s ease}",
 			"#dsh-mobile-scrim.dsh-mobile-visible{display:block;opacity:1}",
@@ -45,9 +43,9 @@ window.__ModuleLoader__.load({
 			"  body.dsh-mobile-ui [class*=sidebarCol]{display:none}",
 			/* 移动端隐藏右侧详情列（桌面 0px 面板，窄屏下会占行推挤内容） */
 			"  body.dsh-mobile-ui [class*=detailsCol]{display:none !important}",
-			/* 底部导航显示 + composer 底部留白 */
-			"  body.dsh-mobile-ui #dsh-mobile-tabbar{display:flex}",
-			"  body.dsh-mobile-ui [class*=composerSeat],body.dsh-mobile-ui [class*=composerStack]{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px)) !important}",
+			/* 右上角菜单按钮显示（无底部导航栏，输入区直接贴底） */
+			"  body.dsh-mobile-ui #dsh-mobile-menu-btn{display:flex}",
+			"  body.dsh-mobile-ui [class*=composerSeat],body.dsh-mobile-ui [class*=composerStack]{padding-bottom:calc(10px + env(safe-area-inset-bottom,0px)) !important}",
 			/* 头部紧凑（允许换行，标题不再截断） */
 			"  body.dsh-mobile-ui [class*=header]{flex-wrap:wrap;row-gap:4px}",
 			/* 触摸目标：composer 区按钮/触发器 ≥44px（iOS HIG） */
@@ -57,15 +55,24 @@ window.__ModuleLoader__.load({
 			"  body.dsh-mobile-ui [class*=composerStack] > *,body.dsh-mobile-ui [class*=composerSeat] > *{white-space:normal !important;overflow-wrap:anywhere !important}",
 			/* 抽屉会话列表项触摸目标 44px */
 			"  body.dsh-mobile-ui [class*=sidebarCol] [class*=listArea] button{min-height:44px !important}",
-			/* hero 布局：内容靠上、输入框贴底（防页面中部悬空 372px 空白） */
-			"  body.dsh-mobile-ui [class*=scrollBody]{justify-content:flex-start !important}",
+			/* hero 布局：内容贴底（输入区紧贴视口底部，无导航栏遮挡） */
+			"  body.dsh-mobile-ui [class*=scrollBody]{justify-content:flex-end !important}",
 			"  body.dsh-mobile-ui [class*=composerSeat]{margin-top:auto !important}",
+			"  body.dsh-mobile-ui [class*=composerSeat] [class*=composerStack]{flex:1 1 auto !important}",
 			"  body.dsh-mobile-ui [class*=composerSeat] [class*=uV2eYG_root]{margin-top:auto !important}",
+			/* 操作行修复：允许换行 + 模型选择器收缩（防权限/模型重叠） */
+			"  body.dsh-mobile-ui [class*=uV2eYG_root]{flex-direction:column !important}",
+			"  body.dsh-mobile-ui [class*=uV2eYG_row]{order:-1 !important;flex-wrap:wrap !important;gap:6px !important}",
+			"  body.dsh-mobile-ui [class*=uV2eYG_row] > *{flex:0 1 auto !important;min-width:0 !important}",
+			"  body.dsh-mobile-ui [class*=uV2eYG_input]{order:0 !important}",
+			"  body.dsh-mobile-ui button[aria-label*=选择模型]{max-width:46% !important;font-size:12px !important}",
+			"  body.dsh-mobile-ui button[aria-label*=访问模式]{font-size:12px !important;padding:0 8px !important}",
 			/* 输入框圆角与内边距（视觉更圆润、输入更舒适） */
 			"  body.dsh-mobile-ui [class*=input]{border-radius:18px !important}",
 			"  body.dsh-mobile-ui textarea{border-radius:18px !important}",
-			/* 输入卡片去白边（1px rgba(255,255,255,.06) 在深色下成弧线） */
-			"  body.dsh-mobile-ui [class*=card]{border-color:transparent !important;box-shadow:none !important}",
+			/* 输入卡片彻底去边框白边（border/box-shadow 全清） */
+			"  body.dsh-mobile-ui [class*=card]{border:none !important;box-shadow:none !important}",
+			"  body.dsh-mobile-ui [class*=uV2eYG_card],body.dsh-mobile-ui [class*=uV2eYG_input]{border:none !important;box-shadow:none !important;background:var(--dsw-alias-bg-layer-2,rgba(35,35,38,.9)) !important}",
 			/* 阅读：消息流边距与间距 */
 			"  body.dsh-mobile-ui [class*=scrollBody]{padding:12px 12px 0}",
 			"  body.dsh-mobile-ui [class*=flowItem]{margin-bottom:14px}",
@@ -85,14 +92,7 @@ window.__ModuleLoader__.load({
 			/* 消息流操作按钮（复制/反馈/分享）触摸目标提升 */
 			"  body.dsh-mobile-ui [class*=scrollBody] [class*=actions] button,body.dsh-mobile-ui [class*=scrollBody] [class*=tools] button{min-width:36px;min-height:36px;display:inline-flex;align-items:center;justify-content:center}",,
 			"}",
-			/* 底部导航栏（移动端）增强样式 */
-			"#dsh-mobile-tabbar{position:fixed;left:0;right:0;bottom:0;z-index:2147483000;display:none;height:calc(58px + env(safe-area-inset-bottom,0px));padding-bottom:env(safe-area-inset-bottom,0px);align-items:stretch;background:var(--dsw-alias-bg-layer-1,rgba(22,23,27,.96));backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-top:1px solid var(--dsw-alias-border-l2,rgba(255,255,255,.14));box-shadow:0 -4px 20px rgba(0,0,0,.25)}",
-			"#dsh-mobile-tabbar button{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-height:50px;background:none;border:none;color:var(--dsw-alias-label-secondary,rgba(255,255,255,.6));font-size:12px;line-height:1;cursor:pointer;padding:8px 0 2px;border-radius:10px;margin:3px 6px;transition:color .15s ease,background .15s ease}",
-			"#dsh-mobile-tabbar button svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}",
-			"#dsh-mobile-tabbar button:active{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08))}",
-			"#dsh-mobile-tabbar button.dsh-mobile-active{color:var(--dsw-alias-brand-primary,#4f7cff)}",
-			"#dsh-mobile-tabbar button.dsh-mobile-active::before{content:'';position:absolute;top:2px;left:50%;transform:translateX(-50%);width:24px;height:3px;border-radius:2px;background:var(--dsw-alias-brand-primary,#4f7cff)}",
-			"#dsh-mobile-tabbar button{position:relative}",
+
 			/* 抽屉视觉：右侧圆角 + 更实背景 */
 			"body.dsh-mobile-ui [class*=sidebarCol].dsh-mobile-drawer{border-radius:0 18px 18px 0;padding-bottom:64px !important;box-sizing:border-box !important}",
 			/* 设置面板（VOzbGW 弹层）移动端：全宽 + 菜单收窄 + 内容区加宽 */
@@ -170,8 +170,8 @@ window.__ModuleLoader__.load({
 				}
 
 				function ensureChrome() {
-					if (document.getElementById("dsh-mobile-tabbar")) {
-						tabbar = document.getElementById("dsh-mobile-tabbar");
+					if (document.getElementById("dsh-mobile-menu-btn")) {
+						tabbar = document.getElementById("dsh-mobile-menu-btn");
 						scrim = document.getElementById("dsh-mobile-scrim");
 						return;
 					}
@@ -180,78 +180,16 @@ window.__ModuleLoader__.load({
 					scrim.addEventListener("click", function () { closeDrawer(); });
 					document.body.appendChild(scrim);
 
-					tabbar = document.createElement("div");
-					tabbar.id = "dsh-mobile-tabbar";
-					tabbar.setAttribute("role", "navigation");
-					tabbar.setAttribute("aria-label", "移动端导航");
-					var defs = [
-						{ key: "new", label: "新建", icon: "<svg viewBox='0 0 24 24'><path d='M12 5v14M5 12h14'/></svg>" },
-						{ key: "sessions", label: "会话", icon: "<svg viewBox='0 0 24 24'><path d='M4 6h16M4 12h10M4 18h7'/></svg>" },
-						{ key: "settings", label: "设置", icon: "<svg viewBox='0 0 24 24'><circle cx='12' cy='12' r='3'/><path d='M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.09a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55h.09a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.09a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1z'/></svg>" }
-					];
-					for (var i = 0; i < defs.length; i++) {
-						(function (d) {
-							var b = document.createElement("button");
-							b.type = "button";
-							b.setAttribute("aria-label", d.label);
-							b.innerHTML = d.icon + "<span>" + d.label + "</span>";
-							b.addEventListener("click", function () {
-								try {
-									if (d.key === "new") {
-										var nb = findSidebarButton("新建会话");
-										if (nb) nb.click();
-									} else if (d.key === "sessions") {
-										openDrawer();
-									} else if (d.key === "settings") {
-										/* 不能直接查 button[aria-label=设置]——会匹配到本导航栏自身按钮。
-										   先开抽屉（展开 sidebar），轮询抽屉内的设置入口，点开后立即关抽屉 */
-										openDrawer();
-										var tries = 0;
-										var poll = setInterval(function () {
-											tries++;
-											try {
-												var side = getSidebar();
-												if (side) {
-													var btns = side.querySelectorAll("button");
-													for (var i = 0; i < btns.length; i++) {
-														var al = btns[i].getAttribute("aria-label") || "";
-														if (al.indexOf("设置") >= 0 || btns[i].textContent.indexOf("设置") >= 0) {
-															/* sidebar 展开渲染未完成时点击会被 React 重渲染覆盖：
-															   延时后重新查询再点击（元素引用可能已失效）。
-															   设置弹层渲染在 sidebar 内部——抽屉必须保持打开，
-															   只隐藏 scrim 防双重遮罩变暗 */
-															clearInterval(poll);
-															setTimeout(function () {
-																try {
-																	var s2 = getSidebar();
-																	if (s2) {
-																		var bs = s2.querySelectorAll("button");
-																		for (var j = 0; j < bs.length; j++) {
-																			var al2 = bs[j].getAttribute("aria-label") || "";
-																			if (al2.indexOf("设置") >= 0 || bs[j].textContent.indexOf("设置") >= 0) {
-																				bs[j].click();
-																				if (scrim) scrim.classList.remove("dsh-mobile-visible");
-																				if (tabbar) tabbar.style.display = "none";
-																				settingsOpen = true;
-																				break;
-																			}
-																		}
-																	}
-																} catch (e) { /* 忽略 */ }
-															}, 450);
-															return;
-														}
-													}
-												}
-											} catch (e) { clearInterval(poll); return; }
-											if (tries > 12) clearInterval(poll); /* 2.4s 后放弃，抽屉保持打开 */
-										}, 200);
-									}
-								} catch (e) { /* 入口转发失败静默 */ }
-							});
-							tabbar.appendChild(b);
-						})(defs[i]);
-					}
+					/* 右上角菜单按钮：打开会话抽屉（抽屉内含 新建/会话列表/设置 全部入口）。
+					   复用 tabbar 变量承载，显隐逻辑（模态隐藏/恢复）零改动 */
+					tabbar = document.createElement("button");
+					tabbar.id = "dsh-mobile-menu-btn";
+					tabbar.type = "button";
+					tabbar.setAttribute("aria-label", "菜单");
+					tabbar.innerHTML = "<svg viewBox='0 0 24 24'><path d='M4 7h16M4 12h16M4 17h10'/></svg>";
+					tabbar.addEventListener("click", function () {
+						try { openDrawer(); } catch (e) { /* 忽略 */ }
+					});
 					document.body.appendChild(tabbar);
 				}
 
