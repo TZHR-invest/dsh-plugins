@@ -174,6 +174,11 @@ collect_vision_config() {
     fi
   fi
   local missing=""
+  # --check 只读：patch 已含本插件接线且带 baseURL 时视为已有配置（不误报，2026-08-15 回归测试发现）
+  if [ "$MODE" = "check" ] && [ -f "$PATCH" ] && grep -q -- "- id: $PLUGIN" "$PATCH" 2>/dev/null && grep -q "baseURL" "$PATCH" 2>/dev/null; then
+    echo "  [OK] 视觉配置已在 $PATCH 中（--check 只读，不重复收集）"
+    return
+  fi
   [ -n "$VISION_BASE_URL" ] || missing="$missing baseURL"
   [ -n "$VISION_MODEL" ] || missing="$missing defaultModel"
   if [ -z "$VISION_API_KEY" ] && [ -z "$VISION_API_KEY_ENV" ]; then missing="$missing apiKey/apiKeyEnv"; fi
