@@ -71,12 +71,13 @@ window.__ModuleLoader__.load({
 			"  body.dsh-mobile-ui [class*=composerHero] > [class*=heroWorkspaceRow]{flex:0 0 auto !important;height:auto !important}",
 			/* 工作区行内按钮豁免 44px 触摸高（保持 28px 原高） */
 			"  body.dsh-mobile-ui [class*=heroWorkspaceRow] button{min-height:28px !important;min-width:0 !important;height:auto !important}",
-		/* QA 问答卡片（Mbwy4a）移动端适配：整卡 fixed 到屏幕上部（菜单按钮下方），
-		   脱离消息流——避免卡片沉在视口底部被浏览器工具栏/手势条遮挡导致
-		   提交按钮几乎看不见；高度受视口约束可滚动 + 全宽 */
-		"  body.dsh-mobile-ui [class*=composerSeat]:has([class*=Mbwy4a_frame]){position:fixed !important;top:100px !important;left:8px !important;right:8px !important;bottom:auto !important;margin:0 !important;z-index:2147482500 !important;padding-bottom:12px !important}",
-			"  body.dsh-mobile-ui [class*=Mbwy4a_card]{width:100% !important;max-width:none !important;max-height:calc(100vh - 140px) !important;overflow-y:auto !important}",
+		/* QA 问答卡片（Mbwy4a）移动端适配：全屏弹层（与设置面板同构）——
+		   seat 固定铺满视口 + 内部滚动，footer（跳过/提交）sticky 钉屏幕底部。
+		   任何设备/视口/系统字体下提交按钮都必然可见；QA 关闭后自动恢复 */
+		"  body.dsh-mobile-ui [class*=composerSeat]:has([class*=Mbwy4a_frame]){position:fixed !important;inset:0 !important;margin:0 !important;z-index:2147482999 !important;padding:16px !important;background:var(--dsw-alias-bg-base,rgba(18,18,22,.98)) !important;overflow-y:auto !important}",
+			"  body.dsh-mobile-ui [class*=Mbwy4a_card]{width:100% !important;max-width:none !important}",
 			"  body.dsh-mobile-ui [class*=Mbwy4a_body]{overflow:visible !important}",
+			"  body.dsh-mobile-ui [class*=Mbwy4a_footer]{position:sticky !important;bottom:0 !important;background:var(--dsw-alias-bg-layer-1,rgb(44,44,46)) !important}",
 			/* 操作行单行紧凑：hero 4 元素 / 会话页 5 元素（含上下文按钮）一行放下。
 			   权限按钮移动端图标模式（44px 隐藏文字防撑宽），上下文紧凑 36px，
 			   模型选择器 127px 居中显示（轻微截断可接受） */
