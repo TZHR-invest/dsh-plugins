@@ -59,12 +59,18 @@ window.__ModuleLoader__.load({
 			"  body.dsh-mobile-ui [class*=scrollBody]{justify-content:flex-start !important}",
 			"  body.dsh-mobile-ui [class*=composerSeat]{margin-top:auto !important}",
 			"  body.dsh-mobile-ui [class*=composerSeat] [class*=uV2eYG_root]{margin-top:auto !important}",
-			/* 操作行单行紧凑：tools+trailing 一行排列（原 wrap 换行导致按钮挤左下方），
-			   模型选择器定宽 145px 不收缩（防挤压截断），发送按钮正常靠右 */
-			"  body.dsh-mobile-ui [class*=uV2eYG_row]{flex-wrap:nowrap !important;gap:8px !important}",
+			/* 操作行单行紧凑：hero 4 元素 / 会话页 5 元素（含上下文按钮）一行放下。
+			   权限按钮移动端图标模式（44px 隐藏文字防撑宽），上下文紧凑 36px，
+			   模型选择器 127px 居中显示（轻微截断可接受） */
+			"  body.dsh-mobile-ui [class*=uV2eYG_row]{flex-wrap:nowrap !important;gap:4px !important}",
 			"  body.dsh-mobile-ui [class*=uV2eYG_row] > *{flex:0 1 auto !important}",
-			"  body.dsh-mobile-ui button[aria-label*=选择模型]{flex:0 0 auto !important;max-width:150px !important;font-size:11px !important;padding:0 8px !important;overflow:hidden !important;text-overflow:ellipsis !important;white-space:nowrap !important}",
-			"  body.dsh-mobile-ui button[aria-label*=访问模式]{font-size:11px !important;padding:0 6px !important}",
+			"  body.dsh-mobile-ui [class*=uV2eYG_tools],body.dsh-mobile-ui [class*=uV2eYG_modes]{padding:0 !important;gap:4px !important}",
+			"  body.dsh-mobile-ui [class*=uV2eYG_row] [class*=trigger]{display:flex !important;align-items:center !important;line-height:1.2 !important}",
+			"  body.dsh-mobile-ui button[aria-label*=选择模型]{display:flex !important;align-items:center !important;justify-content:center !important;flex:0 0 auto !important;max-width:100px !important;font-size:11px !important;padding:0 6px !important;overflow:hidden !important;text-overflow:ellipsis !important;white-space:nowrap !important}",
+			"  body.dsh-mobile-ui button[aria-label*=访问模式]{width:44px !important;flex:0 0 44px !important;padding:0 !important;justify-content:center !important}",
+			"  body.dsh-mobile-ui button[aria-label*=访问模式] span,body.dsh-mobile-ui button[aria-label*=访问模式] [class*=label]{display:none !important}",
+			"  body.dsh-mobile-ui button[aria-label*=上下文]{width:36px !important;max-width:36px !important;flex:0 0 36px !important;padding:0 !important;font-size:10px !important;justify-content:center !important;overflow:hidden !important}",
+			"  body.dsh-mobile-ui button[aria-label*=上下文] span,body.dsh-mobile-ui button[aria-label*=上下文] [class*=label]{max-width:30px !important;overflow:hidden !important;text-overflow:ellipsis !important;white-space:nowrap !important}",
 			/* 输入框圆角与内边距（视觉更圆润、输入更舒适） */
 			"  body.dsh-mobile-ui [class*=input]{border-radius:18px !important}",
 			"  body.dsh-mobile-ui textarea{border-radius:18px !important}",
