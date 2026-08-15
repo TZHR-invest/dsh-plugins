@@ -10,6 +10,7 @@ MADE=0
 for pkg in "$REPO"/packages/*/; do
   [ -d "$pkg" ] || continue
   NAME=$(basename "$pkg")
+  PKGNAME=$(node -p "require('$pkg/package.json').name" 2>/dev/null || echo "$NAME")
   echo "== 打包 $NAME =="
   OUT="$TMP/$NAME-install"
   mkdir -p "$OUT/$NAME"
@@ -21,8 +22,8 @@ for pkg in "$REPO"/packages/*/; do
   [ -f "$pkg/reapply-lan-patches.sh" ] && cp "$pkg/reapply-lan-patches.sh" "$OUT/"
   [ -f "$pkg/README.md" ] && cp "$pkg/README.md" "$OUT/"
   if [ -f "$OUT/install.sh" ]; then
-    tar czf "$REPO/dist/$NAME-install.tar.gz" -C "$TMP" "$NAME-install"
-    echo "  -> dist/$NAME-install.tar.gz"
+    tar czf "$REPO/dist/$PKGNAME-install.tar.gz" -C "$TMP" "$NAME-install"
+    echo "  -> dist/$PKGNAME-install.tar.gz"
     MADE=1
   else
     echo "  [跳过] $NAME 无 install.sh（仅源码包，未生成 tarball）"

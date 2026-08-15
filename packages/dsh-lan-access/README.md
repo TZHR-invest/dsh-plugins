@@ -108,4 +108,4 @@ MIT. Chinese documentation: [README.zh.md](README.zh.md)
 
 ---
 
-*Part of [dsh-plugins](https://github.com/TZHR-invest/dsh-plugins) — a small monorepo of DSH plugins: [dsh-lan-gateway](packages/dsh-lan-access), [dsh-vision-tool](packages/dsh-vision), [dsh-mobile-ui](packages/dsh-mobile-ui).*
+*Part of [dsh-plugins](https://github.com/TZHR-invest/dsh-plugins) — a small monorepo of DSH plugins: [dsh-lan-gateway](https://github.com/TZHR-invest/dsh-plugins/tree/main/packages/dsh-lan-access), [dsh-vision-tool](https://github.com/TZHR-invest/dsh-plugins/tree/main/packages/dsh-vision), [dsh-mobile-ui](https://github.com/TZHR-invest/dsh-plugins/tree/main/packages/dsh-mobile-ui).*

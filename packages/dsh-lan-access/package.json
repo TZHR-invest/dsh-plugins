@@ -1,6 +1,6 @@
 {
   "name": "dsh-lan-gateway",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "LAN/remote access gateway for the DeepSeek Harness Web UI: 0.0.0.0 binding, crypto.randomUUID polyfill, token gate (loopback exempt), privileged-fence + settings-persistence exemptions. Trusted networks only.",
   "type": "module",
   "main": "index.js",

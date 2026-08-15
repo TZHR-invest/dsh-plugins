@@ -1,6 +1,6 @@
 {
   "name": "dsh-vision-tool",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "vision tool for DeepSeek Harness agents: describe local images via any OpenAI-compatible vision endpoint you configure (no built-in keys, optional multi-model cross-check)",
   "type": "module",
   "main": "index.js",
