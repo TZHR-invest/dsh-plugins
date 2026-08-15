@@ -88,10 +88,12 @@ window.__ModuleLoader__.load({
 			"#dsh-mobile-tabbar button.dsh-mobile-active::before{content:'';position:absolute;top:2px;left:50%;transform:translateX(-50%);width:24px;height:3px;border-radius:2px;background:var(--dsw-alias-brand-primary,#4f7cff)}",
 			"#dsh-mobile-tabbar button{position:relative}",
 			/* 抽屉视觉：右侧圆角 + 更实背景 */
-			"body.dsh-mobile-ui [class*=sidebarCol].dsh-mobile-drawer{border-radius:0 18px 18px 0}",
+			"body.dsh-mobile-ui [class*=sidebarCol].dsh-mobile-drawer{border-radius:0 18px 18px 0;padding-bottom:64px !important;box-sizing:border-box !important}",
 			/* 设置面板（VOzbGW 弹层）移动端：全宽 + 菜单收窄 + 内容区加宽 */
 			"body.dsh-mobile-ui [class*=VOzbGW_panel]{left:0 !important;right:0 !important;width:100vw !important;max-width:100vw !important;border-radius:0 !important;padding-bottom:64px !important;box-sizing:border-box !important}",
-			"body.dsh-mobile-ui [class*=VOzbGW_overlay]{align-items:flex-start !important;padding-top:12px !important}",
+			"body.dsh-mobile-ui [class*=VOzbGW_overlay]{align-items:flex-start !important;padding-top:12px !important;padding-bottom:70px !important;box-sizing:border-box !important}",
+			"body.dsh-mobile-ui [class*=VOzbGW_panel]{max-height:calc(100vh - 92px) !important}",
+			"body.dsh-mobile-ui [class*=VOzbGW_content],body.dsh-mobile-ui [class*=VOzbGW_options]{flex:1 1 auto !important;min-height:0 !important;max-height:none !important;overflow-y:auto !important}",
 			"body.dsh-mobile-ui [class*=VOzbGW_options]{padding-bottom:64px !important;box-sizing:border-box !important}",
 			"body.dsh-mobile-ui [class*=VOzbGW_nav]{width:110px !important;flex:0 0 110px !important}",
 			"body.dsh-mobile-ui [class*=VOzbGW_content]{flex:1 1 auto !important;min-width:0 !important;padding:0 12px !important}",
