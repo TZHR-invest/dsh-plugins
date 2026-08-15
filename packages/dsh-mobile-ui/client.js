@@ -61,12 +61,16 @@ window.__ModuleLoader__.load({
 			"  body.dsh-mobile-ui [class*=scrollBody]{justify-content:flex-start !important}",
 			"  body.dsh-mobile-ui [class*=composerSeat]{margin-top:auto !important}",
 			"  body.dsh-mobile-ui [class*=composerSeat] [class*=uV2eYG_root]{margin-top:auto !important}",
-			/* hero 标题区与输入框间距（工作区行与输入卡 8px→56px，明显分离） */
-			"  body.dsh-mobile-ui [class*=heroWorkspaceRow]{margin-bottom:48px !important}",
-			/* 工作区行上移后：固定内容高度 + 标题下间距 */
-			"  body.dsh-mobile-ui [class*=scrollBody] > [class*=heroWorkspaceRow]{flex:0 0 auto !important;height:auto !important;margin-top:16px !important;margin-bottom:0 !important}",
-			/* 标题区上移后：固定内容高度（防 flex 拉伸）+ 顶部与底部间距 */
-			"  body.dsh-mobile-ui [class*=scrollBody] > [class*=pXSMma_root]{flex:0 0 auto !important;height:auto !important;margin-top:24px !important;margin-bottom:24px !important}",
+			/* hero 标题置顶（纯 CSS，不移动 DOM）：composerHero 栈撑满视口，
+			   输入卡经 margin-top:auto 沉底，标题/工作区行自然留在顶部。
+			   禁止用 JS insertBefore 搬动 React 节点——重渲染时 removeChild 抛
+			   NotFoundError，整个会话视图会被卸载（页面清空） */
+			"  body.dsh-mobile-ui [class*=composerSeat]:has([class*=composerHero]){flex:1 1 auto !important;margin-top:0 !important}",
+			"  body.dsh-mobile-ui [class*=composerHero]{flex:1 1 auto !important}",
+			"  body.dsh-mobile-ui [class*=composerHero] > [class*=pXSMma_root]{flex:0 0 auto !important;height:auto !important;margin-top:24px !important}",
+			"  body.dsh-mobile-ui [class*=composerHero] > [class*=heroWorkspaceRow]{flex:0 0 auto !important;height:auto !important}",
+			/* 工作区行内按钮豁免 44px 触摸高（保持 28px 原高） */
+			"  body.dsh-mobile-ui [class*=heroWorkspaceRow] button{min-height:28px !important;min-width:0 !important;height:auto !important}",
 			/* 操作行单行紧凑：hero 4 元素 / 会话页 5 元素（含上下文按钮）一行放下。
 			   权限按钮移动端图标模式（44px 隐藏文字防撑宽），上下文紧凑 36px，
 			   模型选择器 127px 居中显示（轻微截断可接受） */
@@ -281,18 +285,9 @@ window.__ModuleLoader__.load({
 								}
 							}
 							document.body.classList.add("dsh-mobile-ui");
-							/* hero 标题区上移：pXSMma 从 seat 移到 scrollBody 顶部（标题独立在上方，
-							   输入区沉底贴屏幕底部，中间自然留白）。CSS 固定其高度防 flex 拉伸 */
-							try {
-								var sbX = document.querySelector("[class*=scrollBody]");
-								var hzX = document.querySelector("[class*=pXSMma_root]");
-								var wsX = document.querySelector("[class*=heroWorkspaceRow]");
-								var stX = document.querySelector("[class*=composerSeat]");
-								if (sbX && stX && sbX.contains(stX)) {
-									if (hzX && stX.contains(hzX)) sbX.insertBefore(hzX, stX);
-									if (wsX && stX.contains(wsX)) sbX.insertBefore(wsX, stX);
-								}
-							} catch (e) { /* 标题区上移失败不影响核心 */ }
+							/* hero 标题置顶改由纯 CSS 实现（composerHero 撑满视口 + 输入卡沉底），
+							   不再用 insertBefore 搬动 React 节点——移动节点会导致 React 重渲染
+							   removeChild 抛 NotFoundError，整个会话视图卸载（页面空白） */
 							var frame = findFrame();
 							if (frame) {
 								if (savedGrid === null) savedGrid = frame.style.gridTemplateColumns;

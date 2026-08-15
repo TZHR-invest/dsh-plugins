@@ -3,7 +3,7 @@
 dsh web 移动端 UI 优化插件：在手机（≤768px 视口）上把 dsh 变成真正的移动端体验。
 
 - **响应式布局**：隐藏左侧图标栏，内容全宽；会话列表以抽屉形式展开
-- **底部导航栏**：新建 / 会话 / 设置 三个入口（替代被隐藏的侧边栏）
+- **右上角菜单按钮**：新建 / 会话列表 / 设置 全部入口收纳进抽屉
 - **阅读增强**：消息间距、气泡宽度、辅助文本（工具行/上下文注入/状态统计）字号提升
 - **触摸优化**：防双击缩放延迟、点击高亮去除、输入框 16px（防 iOS focus 自动缩放）
 - **安全区适配**：env(safe-area-inset-*) 支持刘海屏
@@ -38,7 +38,9 @@ bash scripts/package.sh                     # 打包 dist/dsh-mobile-ui-install.
 - **CSS 层**：注入 style[data-plugin-css=dsh-mobile-ui]，全部规则包在
   @media (max-width:768px) 内，桌面端不加载任何效果。
 - **JS 层**：matchMedia 驱动；窄屏时把主布局 grid 改为单列、隐藏侧边栏，
-  注入底部导航 + 遮罩；「会话」按钮把侧边栏临时变为 fixed 抽屉（overlay）。
+  注入右上角菜单按钮 + 遮罩；菜单把侧边栏临时变为 fixed 抽屉（overlay）。
+- **hero 标题置顶**：纯 CSS 实现——composerHero 栈在 hero 态撑满视口
+  （flex:1），输入卡 margin-top:auto 沉底，标题/工作区行自然留在顶部。
 
 ## 维护须知（重要）
 
@@ -48,6 +50,10 @@ bash scripts/package.sh                     # 打包 dist/dsh-mobile-ui-install.
   3. 修好后重新 bash install.sh。
 - 布局探测采用「三列 grid + 首列 56px」结构识别（非类名硬编码），
   对类名漂移有一定容错；按钮转发优先 aria-label（新建会话 等）。
+- **严禁用 JS 移动 React 渲染的 DOM 节点**（insertBefore/appendChild 搬动
+  pXSMma_root 等）：React fiber 树仍记录旧父节点，重渲染时 removeChild 抛
+  NotFoundError，整个会话视图被卸载 → 页面空白。布局需求一律用 CSS
+  （flex/order/:has）表达；hero 标题置顶即纯 CSS 实现。
 
 ## 回滚
 
