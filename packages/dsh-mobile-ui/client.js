@@ -59,11 +59,12 @@ window.__ModuleLoader__.load({
 			"  body.dsh-mobile-ui [class*=scrollBody]{justify-content:flex-start !important}",
 			"  body.dsh-mobile-ui [class*=composerSeat]{margin-top:auto !important}",
 			"  body.dsh-mobile-ui [class*=composerSeat] [class*=uV2eYG_root]{margin-top:auto !important}",
-			/* 操作行修复：允许换行 + 模型选择器收缩（防权限/模型重叠） */
-			"  body.dsh-mobile-ui [class*=uV2eYG_row]{flex-wrap:wrap !important;gap:6px !important}",
-			"  body.dsh-mobile-ui [class*=uV2eYG_row] > *{flex:0 1 auto !important;min-width:0 !important}",
-			"  body.dsh-mobile-ui button[aria-label*=选择模型]{max-width:46% !important;font-size:12px !important}",
-			"  body.dsh-mobile-ui button[aria-label*=访问模式]{font-size:12px !important;padding:0 8px !important}",
+			/* 操作行单行紧凑：tools+trailing 一行排列（原 wrap 换行导致按钮挤左下方），
+			   模型选择器定宽 145px 不收缩（防挤压截断），发送按钮正常靠右 */
+			"  body.dsh-mobile-ui [class*=uV2eYG_row]{flex-wrap:nowrap !important;gap:8px !important}",
+			"  body.dsh-mobile-ui [class*=uV2eYG_row] > *{flex:0 1 auto !important}",
+			"  body.dsh-mobile-ui button[aria-label*=选择模型]{flex:0 0 auto !important;max-width:150px !important;font-size:11px !important;padding:0 8px !important;overflow:hidden !important;text-overflow:ellipsis !important;white-space:nowrap !important}",
+			"  body.dsh-mobile-ui button[aria-label*=访问模式]{font-size:11px !important;padding:0 6px !important}",
 			/* 输入框圆角与内边距（视觉更圆润、输入更舒适） */
 			"  body.dsh-mobile-ui [class*=input]{border-radius:18px !important}",
 			"  body.dsh-mobile-ui textarea{border-radius:18px !important}",
