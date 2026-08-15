@@ -1,7 +1,7 @@
 {
-  "name": "dsh-lan-access",
+  "name": "dsh-lan-gateway",
   "version": "0.2.0",
-  "description": "dsh web 局域网访问支持：crypto.randomUUID polyfill + 访问令牌验证（回环豁免）+ 特权围栏/设置持久化放行。",
+  "description": "LAN/remote access gateway for the DeepSeek Harness Web UI: 0.0.0.0 binding, crypto.randomUUID polyfill, token gate (loopback exempt), privileged-fence + settings-persistence exemptions. Trusted networks only.",
   "type": "module",
   "main": "index.js",
   "exports": {

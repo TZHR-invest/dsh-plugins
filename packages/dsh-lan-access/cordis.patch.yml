@@ -4,4 +4,4 @@
 # 由 Loader 按双锚点解析（dsh 安装目录 -> profile node_modules）。
 - insert:
     - id: lan-access
-      name: dsh-lan-access
+      name: dsh-lan-gateway

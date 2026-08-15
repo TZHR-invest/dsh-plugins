@@ -3,4 +3,4 @@
 # dsh.profile.bundles 时按序应用本层。name 用包名（非相对路径）。
 - insert:
     - id: dsh-vision
-      name: dsh-vision
+      name: dsh-vision-tool

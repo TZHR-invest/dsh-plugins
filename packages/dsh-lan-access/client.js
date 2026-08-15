@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-	id: "dsh-lan-access",
+	id: "dsh-lan-gateway",
 	factory: (require) => {
 		var module = { exports: {} };
 		var exports = module.exports;

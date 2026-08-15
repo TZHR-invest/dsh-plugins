@@ -1,57 +1,82 @@
-# dsh-vision 插件
+# dsh-vision-tool
 
-给 dsh agent 注册 `vision` 工具：把本地图片发送到**你配置的 OpenAI 兼容视觉模型端点**返回文字描述——用于当前会话模型不支持图像输入的场景。
+A **`vision` tool** for DeepSeek Harness agents: sends a local image to the OpenAI-compatible vision endpoint **you configure** and returns a text description — for when the current session model can't ingest images directly.
 
-**插件没有任何内置默认值**：provider、凭据、模型全部在**安装时由你配置**。未配置完整时插件正常加载但不会注册 vision 工具（日志提示缺项），不会影响宿主。
+The plugin ships **no built-in defaults**: provider (baseURL), credentials, and models are all configured at install time. If configuration is incomplete the plugin loads normally but does not register the tool (log line shows what's missing) — it can never crash the host.
 
-## 安装（配置在安装时完成）
+## Features
+
+- Agent-callable tool: `vision image_path=/tmp/shot.png`
+- Any OpenAI-compatible `/chat/completions` endpoint (vendor-agnostic)
+- Credential resolution chain: inline `apiKey` → `apiKeyEnv` (environment variable) → `~/.dsh/.credentials.yaml` same-name key
+- Optional **cross-check**: query several models and merge answers (`cross_check=true`) to guard against hallucinated descriptions
+- `maxTokens` / `maxImageBytes` limits (optional)
+- Requests go out via a `curl` subprocess — inherits host proxy env vars and avoids Cloudflare 403/1010 on default urllib/undici user agents
+
+## Install
+
+### Tarball
 
 ```bash
-cd dsh-vision-install
+tar xzf dsh-vision-tool-install.tar.gz && cd dsh-vision-tool-install
 
-# 方式 A：交互式——直接运行，按提示逐项输入 baseURL / 模型 / 凭据
+# interactive: just run it and answer the prompts
 bash install.sh --restart
 
-# 方式 B：参数式——一键传参（适合脚本化/重复部署）
+# or parameterized (scriptable / repeatable deploys)
 bash install.sh --restart \
-  --vision-base-url https://opencode.ai/zen/go/v1 \
-  --vision-api-key-env OPENCODE_GO_API_KEY \
-  --vision-model mimo-v2.5 \
-  --vision-models mimo-v2.5,qwen3.8-max,kimi-k3 \
+  --vision-base-url https://example.com/v1 \
+  --vision-api-key-env MY_VISION_KEY \
+  --vision-model gpt-4o \
+  --vision-models gpt-4o,qwen-vl-max,kimi-latest \
   --vision-max-tokens 2000
 ```
 
-## 安装参数（--vision-*）
+### npm
 
-| 参数 | 必填 | 说明 |
+```bash
+dsh plugin --profile web add dsh-vision-tool
+# then configure: edit the dsh-vision-tool config section in ~/.dsh/profiles/web/cordis.patch.yml
+```
+
+## Install parameters (`--vision-*`)
+
+| Parameter | Required | Meaning |
 |---|---|---|
-| `--vision-base-url` | ✅ | OpenAI 兼容 chat/completions 端点（任何厂商） |
-| `--vision-model` | ✅ | 默认视觉模型 |
-| `--vision-api-key` | 二选一 | 直接填 API key |
-| `--vision-api-key-env` | 二选一 | 环境变量名（也尝试 ~/.dsh/.credentials.yaml 同名键） |
-| `--vision-models` | 可选 | cross_check=true 时的核对模型列表（逗号分隔） |
-| `--vision-max-tokens` | 可选 | 不配则请求不带 max_tokens |
+| `--vision-base-url` | ✅ | OpenAI-compatible chat/completions endpoint |
+| `--vision-model` | ✅ | Default vision model |
+| `--vision-api-key` | one of | API key inline |
+| `--vision-api-key-env` | one of | Environment variable name (also tried as a key in `~/.dsh/.credentials.yaml`) |
+| `--vision-models` | optional | Cross-check model list (comma-separated; needed for `cross_check=true`) |
+| `--vision-max-tokens` | optional | Omitted from the request if not set |
 
-> 未提供参数且是交互终端 → 引导式逐项询问；
-> 未提供参数且非交互 → 写入空配置（工具不注册），可重跑传参，或编辑 `~/.dsh/profiles/web/cordis.patch.yml` 的 dsh-vision config 段。
+> No parameters + interactive terminal → guided prompts. No parameters + non-interactive → empty config written (tool not registered); re-run with parameters, or edit the config section in `~/.dsh/profiles/web/cordis.patch.yml`.
 
-## 使用（agent 内）
+## Usage (inside the agent)
 
 ```
 vision image_path=/tmp/shot.png
-vision image_path=/tmp/shot.png question="图里有什么文字？"
+vision image_path=/tmp/shot.png question="What text is in this image?"
 vision image_path=/tmp/shot.png model=gpt-4o
-vision image_path=/tmp/shot.png cross_check=true   # 需安装时配置了 --vision-models
+vision image_path=/tmp/shot.png cross_check=true   # requires --vision-models configured at install
 ```
 
-## 安全说明
+## Security
 
-- 插件不含任何内置密钥；密钥只来自你的安装参数/环境/凭据文件
-- 凭据文件 `~/.dsh/.credentials.yaml` 权限建议 `chmod 600`
+- No built-in keys — credentials come only from your install parameters / environment / credential file
+- `~/.dsh/.credentials.yaml` should be chmod 600
 
-## 常见问题
+## Troubleshooting
 
-- 工具不出现：日志有 `[dsh-vision] 未配置 ...`——重跑 install.sh 传 `--vision-*` 参数后重启
-- 凭据解析失败：`apiKey` 或 `apiKeyEnv`（含凭据文件同名键）至少其一
-- 端点不兼容：确认 baseURL 是 OpenAI 兼容的 `/chat/completions`，鉴权 `Authorization: Bearer`
-- reasoning 模型输出为空：配置 `--vision-max-tokens 2000` 以上
+- **Tool doesn't appear**: log shows `[dsh-vision-tool] missing ...` — re-run install.sh with `--vision-*` parameters and restart
+- **Credential resolution fails**: at least one of `apiKey` / `apiKeyEnv` (incl. credential-file same-name key)
+- **Endpoint incompatible**: baseURL must be OpenAI-compatible (`/chat/completions`, `Authorization: Bearer`)
+- **Empty output from reasoning models**: configure `--vision-max-tokens 2000` or higher
+
+## License
+
+MIT. Chinese documentation: [README.zh.md](README.zh.md)
+
+---
+
+*Part of [dsh-plugins](https://github.com/TZHR-invest/dsh-plugins) — a small monorepo of DSH plugins: [dsh-lan-gateway](packages/dsh-lan-access), [dsh-vision-tool](packages/dsh-vision), [dsh-mobile-ui](packages/dsh-mobile-ui).*

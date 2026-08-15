@@ -20,13 +20,16 @@ MODE="${1:-apply}"
 DSH="${DSH_HOME:-$HOME/.dsh}"
 
 # ── 1/6 插件安装与接线（官方 bundle 流优先，复制流回退）──────────────────
-SRC="$DSH/plugins/dsh-lan-access"
-DST="$DSH/profiles/node_modules/dsh-lan-access"
+if [ -d "$DSH/plugins/dsh-lan-gateway" ]; then
+  SRC="$DSH/plugins/dsh-lan-gateway"; DST="$DSH/profiles/node_modules/dsh-lan-gateway"
+else
+  SRC="$DSH/plugins/dsh-lan-access"; DST="$DSH/profiles/node_modules/dsh-lan-access"
+fi
 PATCH="$DSH/profiles/web/cordis.patch.yml"
 echo "== 1/6 插件安装与接线 =="
 
 bundle_wired() {
-  [ -f "$DSH/profiles/web/package.json" ] && grep -q '"dsh-lan-access"' "$DSH/profiles/web/package.json"
+  [ -f "$DSH/profiles/web/package.json" ] && grep -qE '"(dsh-lan-access|dsh-lan-gateway)"' "$DSH/profiles/web/package.json"
 }
 legacy_wired() {
   [ -f "$DST/client.js" ] && grep -q "randomUUID" "$DST/client.js" 2>/dev/null \
@@ -79,17 +82,17 @@ install_legacy() {
   if [ ! -f "$DST/client.js" ]; then
     mkdir -p "$DST" && cp "$SRC"/* "$DST/" && echo "  [已装] $DST"
   fi
-  if grep -q "dsh-lan-access" "$PATCH" 2>/dev/null; then
+  if grep -qE "dsh-lan-(access|gateway)" "$PATCH" 2>/dev/null; then
     echo "  [已有] $PATCH"
   else
     sed -i '/^[[:space:]]*\\[\\][[:space:]]*$/d' "$PATCH"
-    printf -- "- insert:\n    - id: lan-access\n      name: 'dsh-lan-access'\n" >> "$PATCH"
+    printf -- "- insert:\n    - id: lan-access\n      name: 'dsh-lan-gateway'\n" >> "$PATCH"
     echo "  [已加] $PATCH"
   fi
 }
 
 if bundle_wired; then
-  echo "  [已有] 官方 bundle 流已接线（web profile bundles 含 dsh-lan-access）"
+  echo "  [已有] 官方 bundle 流已接线（web profile bundles 含 dsh-lan-gateway）"
   cleanup_legacy_lines "$PATCH"
 elif legacy_wired; then
   echo "  [已有] 旧复制流已接线（$DST + $PATCH）"
@@ -204,7 +207,7 @@ fi
 echo "== 5/6 webserver 令牌门卫补丁 =="
 FW="$ROOT/node_modules/@deepseek-ai/dsh-host-webserver/lib/index.js"
 if [ ! -f "$SRC/patch-webserver.mjs" ]; then
-  echo "  [缺失] $SRC/patch-webserver.mjs（插件源码不完整，请重新安装 dsh-lan-access）"
+  echo "  [缺失] $SRC/patch-webserver.mjs（插件源码不完整，请重新安装 dsh-lan-gateway）"
 elif [ "$MODE" = "--check" ]; then
   if node "$SRC/patch-webserver.mjs" "$FW" --check; then
     echo "  [已有] webserver 令牌门卫"
@@ -248,6 +251,6 @@ if [ "$MODE" = "--restart" ]; then
       curl -s --noproxy '*' -o /dev/null -w 'LAN Host settings.describe（带令牌，应非 403）-> %{http_code}\n' -H "Host: $IP:3080" -H "X-DSH-Token: $TOKEN" -X POST http://127.0.0.1:3080/api/settings.describe
     fi
   fi
-  curl -s --noproxy '*' -o /dev/null -w '插件 bundle（应 200）-> %{http_code}\n' http://127.0.0.1:3080/plugins/dsh-lan-access/client.js
+  curl -s --noproxy '*' -o /dev/null -w '插件 bundle（应 200）-> %{http_code}\n' http://127.0.0.1:3080/plugins/dsh-lan-gateway/client.js
   echo "== 完成 =="
 fi

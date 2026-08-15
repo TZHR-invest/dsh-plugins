@@ -33,14 +33,14 @@ else
 fi
 FAIL=0
 
-echo "== dsh-lan-access 一键安装（mode: $MODE）=="
+echo "== dsh-lan-gateway 一键安装（mode: $MODE）=="
 echo "  DSH 目录: $DSH"
 echo "  安装包目录: $HERE"
 
 # ── 0/6 前置检查：安装包完整性 + 定位 dsh 安装根 ───────────────────────────
 echo "== 0/6 前置检查 =="
 if [ ! -f "$PLUGIN/package.json" ] || [ ! -f "$PLUGIN/client.js" ]; then
-  echo "  错误：安装包缺少 dsh-lan-access/ 插件源码（$PLUGIN 不完整）"; exit 1
+  echo "  错误：安装包缺少 dsh-lan-gateway/ 插件源码（$PLUGIN 不完整）"; exit 1
 fi
 if [ ! -f "$PLUGIN/token-gate.js" ] || [ ! -f "$PLUGIN/patch-webserver.mjs" ]; then
   echo "  错误：安装包缺少令牌门卫补丁源（token-gate.js / patch-webserver.mjs）"; exit 1
@@ -99,11 +99,11 @@ fi
 # ── 2/6 插件安装与接线（官方 bundle 流优先，复制流回退）──────────────────
 echo "== 2/6 插件安装与接线 =="
 PATCH2="$DSH/profiles/web/cordis.patch.yml"
-DST_PLUGINS="$DSH/plugins/dsh-lan-access"
-DST_PROFILE="$DSH/profiles/node_modules/dsh-lan-access"
+DST_PLUGINS="$DSH/plugins/dsh-lan-gateway"
+DST_PROFILE="$DSH/profiles/node_modules/dsh-lan-gateway"
 
 bundle_wired() {
-  [ -f "$DSH/profiles/web/package.json" ] && grep -q '"dsh-lan-access"' "$DSH/profiles/web/package.json"
+  [ -f "$DSH/profiles/web/package.json" ] && grep -qE '"(dsh-lan-access|dsh-lan-gateway)"' "$DSH/profiles/web/package.json"
 }
 legacy_wired() {
   [ -f "$DST_PROFILE/client.js" ] && grep -q "randomUUID" "$DST_PROFILE/client.js" 2>/dev/null \
@@ -159,19 +159,19 @@ install_legacy() {
     echo "  [跳过] web profile 尚未初始化（$DSH/profiles/web 不存在）"
     echo "         请先运行一次 dsh web 完成初始化，再重跑本脚本接线"
     FAIL=1
-  elif ! grep -q "dsh-lan-access" "$PATCH2" 2>/dev/null; then
+  elif ! grep -qE "dsh-lan-(access|gateway)" "$PATCH2" 2>/dev/null; then
     sed -i '/^[[:space:]]*\\[\\][[:space:]]*$/d' "$PATCH2"
     cat >> "$PATCH2" <<'EOF'
 - insert:
     - id: lan-access
-      name: 'dsh-lan-access'
+      name: 'dsh-lan-gateway'
 EOF
     echo "  [已加] $PATCH2"
   fi
 }
 
 if bundle_wired; then
-  echo "  [已有] 官方 bundle 流已接线（web profile bundles 含 dsh-lan-access）"
+  echo "  [已有] 官方 bundle 流已接线（web profile bundles 含 dsh-lan-gateway）"
   cleanup_legacy_lines "$PATCH2"
 elif legacy_wired; then
   echo "  [已有] 旧复制流已接线（$DST_PROFILE + $PATCH2）"
@@ -363,7 +363,7 @@ if [ "$MODE" = "--restart" ]; then
         curl -s --noproxy '*' -o /dev/null -w 'LAN Host settings.describe（带令牌，应非 403）-> %{http_code}\n' -H "Host: $IP:3080" -H "X-DSH-Token: $TOKEN" -X POST http://127.0.0.1:3080/api/settings.describe
       fi
     fi
-    curl -s --noproxy '*' -o /dev/null -w '插件 bundle（应 200）-> %{http_code}\n' http://127.0.0.1:3080/plugins/dsh-lan-access/client.js
+    curl -s --noproxy '*' -o /dev/null -w '插件 bundle（应 200）-> %{http_code}\n' http://127.0.0.1:3080/plugins/dsh-lan-gateway/client.js
     echo "== 完成 =="
   else
     echo "  无法定位 dsh 可执行文件，请手动重启 dsh web"

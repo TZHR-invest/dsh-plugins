@@ -15,7 +15,7 @@
 #      命中插件加载错误关键字即中止，正式服务不受影响。
 set -u
 
-PLUGIN="dsh-vision"
+PLUGIN="dsh-vision-tool"
 SRC=""
 PROFILE="web"
 API_KEY=""
