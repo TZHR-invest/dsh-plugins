@@ -1,12 +1,42 @@
 {
   "name": "dsh-web-search-metaso",
   "version": "0.1.0",
-  "description": "Metaso (秘塔AI搜索) providers for the DeepSeek Harness web seam: web_search returns answer summaries, web_fetch reads full page markdown",
+  "description": "Metaso (秘塔AI搜索) providers for the DeepSeek Harness web seam: web_search returns page summaries, web_fetch reads full page markdown",
   "type": "module",
   "main": "index.js",
   "exports": {
     ".": "./index.js",
     "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "cordis.patch.yml",
+    "install.sh",
+    "README.md",
+    "README.zh.md"
+  ],
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "deepseek",
+    "plugin",
+    "metaso",
+    "search",
+    "web-search",
+    "web-fetch"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TZHR-invest/dsh-plugins.git",
+    "directory": "packages/dsh-web-search-metaso"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-credentials": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-launch-environment": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-settings": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-web": "^0.1.0-rc.6",
+    "@deepseek-ai/schemastery": "^3.18.1"
   },
   "dsh": {
     "bundle": { "patch": "./cordis.patch.yml" }
