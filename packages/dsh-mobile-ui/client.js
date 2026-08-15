@@ -55,24 +55,21 @@ window.__ModuleLoader__.load({
 			"  body.dsh-mobile-ui [class*=composerStack] > *,body.dsh-mobile-ui [class*=composerSeat] > *{white-space:normal !important;overflow-wrap:anywhere !important}",
 			/* 抽屉会话列表项触摸目标 44px */
 			"  body.dsh-mobile-ui [class*=sidebarCol] [class*=listArea] button{min-height:44px !important}",
-			/* hero 布局：内容贴底（输入区紧贴视口底部，无导航栏遮挡） */
-			"  body.dsh-mobile-ui [class*=scrollBody]{justify-content:flex-end !important}",
+			/* hero 布局：内容顶部对齐可滚动，输入区经 margin-top:auto 沉底贴视口底部 */
+			"  body.dsh-mobile-ui [class*=scrollBody]{justify-content:flex-start !important}",
 			"  body.dsh-mobile-ui [class*=composerSeat]{margin-top:auto !important}",
-			"  body.dsh-mobile-ui [class*=composerSeat] [class*=composerStack]{flex:1 1 auto !important}",
 			"  body.dsh-mobile-ui [class*=composerSeat] [class*=uV2eYG_root]{margin-top:auto !important}",
 			/* 操作行修复：允许换行 + 模型选择器收缩（防权限/模型重叠） */
-			"  body.dsh-mobile-ui [class*=uV2eYG_root]{flex-direction:column !important}",
-			"  body.dsh-mobile-ui [class*=uV2eYG_row]{order:-1 !important;flex-wrap:wrap !important;gap:6px !important}",
+			"  body.dsh-mobile-ui [class*=uV2eYG_row]{flex-wrap:wrap !important;gap:6px !important}",
 			"  body.dsh-mobile-ui [class*=uV2eYG_row] > *{flex:0 1 auto !important;min-width:0 !important}",
-			"  body.dsh-mobile-ui [class*=uV2eYG_input]{order:0 !important}",
 			"  body.dsh-mobile-ui button[aria-label*=选择模型]{max-width:46% !important;font-size:12px !important}",
 			"  body.dsh-mobile-ui button[aria-label*=访问模式]{font-size:12px !important;padding:0 8px !important}",
 			/* 输入框圆角与内边距（视觉更圆润、输入更舒适） */
 			"  body.dsh-mobile-ui [class*=input]{border-radius:18px !important}",
 			"  body.dsh-mobile-ui textarea{border-radius:18px !important}",
-			/* 输入卡片彻底去边框白边（border/box-shadow 全清） */
+			/* 输入卡片彻底去边框白边（border/box-shadow 全清，背景跟随主题变量） */
 			"  body.dsh-mobile-ui [class*=card]{border:none !important;box-shadow:none !important}",
-			"  body.dsh-mobile-ui [class*=uV2eYG_card],body.dsh-mobile-ui [class*=uV2eYG_input]{border:none !important;box-shadow:none !important;background:var(--dsw-alias-bg-layer-2,rgba(35,35,38,.9)) !important}",
+			"  body.dsh-mobile-ui [class*=uV2eYG_card],body.dsh-mobile-ui [class*=uV2eYG_input]{border:none !important;box-shadow:none !important}",
 			/* 阅读：消息流边距与间距 */
 			"  body.dsh-mobile-ui [class*=scrollBody]{padding:12px 12px 0}",
 			"  body.dsh-mobile-ui [class*=flowItem]{margin-bottom:14px}",
