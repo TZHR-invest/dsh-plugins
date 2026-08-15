@@ -61,6 +61,8 @@ window.__ModuleLoader__.load({
 			"  body.dsh-mobile-ui [class*=scrollBody]{justify-content:flex-start !important}",
 			"  body.dsh-mobile-ui [class*=composerSeat]{margin-top:auto !important}",
 			"  body.dsh-mobile-ui [class*=composerSeat] [class*=uV2eYG_root]{margin-top:auto !important}",
+			/* hero 标题区与输入框间距（工作区行与输入卡 8px→36px，防紧贴） */
+			"  body.dsh-mobile-ui [class*=heroWorkspaceRow]{margin-bottom:28px !important}",
 			/* 操作行单行紧凑：hero 4 元素 / 会话页 5 元素（含上下文按钮）一行放下。
 			   权限按钮移动端图标模式（44px 隐藏文字防撑宽），上下文紧凑 36px，
 			   模型选择器 127px 居中显示（轻微截断可接受） */
