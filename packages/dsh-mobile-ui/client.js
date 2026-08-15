@@ -43,22 +43,46 @@ window.__ModuleLoader__.load({
 			/* 布局单列（JS 同步改内联样式；此处 !important 兜底防 React 重渲染还原） */
 			"  body.dsh-mobile-ui [class*=frame]{grid-template-columns:minmax(0,1fr) !important}",
 			"  body.dsh-mobile-ui [class*=sidebarCol]{display:none}",
+			/* 移动端隐藏右侧详情列（桌面 0px 面板，窄屏下会占行推挤内容） */
+			"  body.dsh-mobile-ui [class*=detailsCol]{display:none !important}",
 			/* 底部导航显示 + composer 底部留白 */
 			"  body.dsh-mobile-ui #dsh-mobile-tabbar{display:flex}",
-			"  body.dsh-mobile-ui [class*=composerSeat],body.dsh-mobile-ui [class*=composerStack]{padding-bottom:calc(60px + env(safe-area-inset-bottom,0px)) !important}",
+			"  body.dsh-mobile-ui [class*=composerSeat],body.dsh-mobile-ui [class*=composerStack]{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px)) !important}",
 			/* 头部紧凑（允许换行，标题不再截断） */
 			"  body.dsh-mobile-ui [class*=header]{flex-wrap:wrap;row-gap:4px}",
+			/* 触摸目标：composer 区按钮/触发器 ≥44px（iOS HIG） */
+			"  body.dsh-mobile-ui [class*=composerSeat] button,body.dsh-mobile-ui [class*=composerStack] button{min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center}",
+			"  body.dsh-mobile-ui [class*=composerSeat] [class*=trigger],body.dsh-mobile-ui [class*=composerStack] [class*=trigger]{min-height:40px}",
+			/* 输入框圆角与内边距（视觉更圆润、输入更舒适） */
+			"  body.dsh-mobile-ui [class*=input]{border-radius:18px !important}",
+			"  body.dsh-mobile-ui textarea{border-radius:18px !important}",
 			/* 阅读：消息流边距与间距 */
-			"  body.dsh-mobile-ui [class*=scrollBody]{padding:12px 10px 0}",
+			"  body.dsh-mobile-ui [class*=scrollBody]{padding:12px 12px 0}",
 			"  body.dsh-mobile-ui [class*=flowItem]{margin-bottom:14px}",
-			"  body.dsh-mobile-ui [class*=userBubble],body.dsh-mobile-ui [class*=bubble]{max-width:94% !important}",
+			"  body.dsh-mobile-ui [class*=userBubble],body.dsh-mobile-ui [class*=bubble]{max-width:92% !important}",
 			/* 辅助文本字号提升（词根容错：actions/meta/caption/stamp/hint/tools/badge） */
-			"  body.dsh-mobile-ui [class*=scrollBody] :is([class*=actions],[class*=meta],[class*=caption],[class*=stamp],[class*=hint],[class*=tools],[class*=badge],[class*=timing]){font-size:13px !important}",
+			"  body.dsh-mobile-ui [class*=scrollBody] :is([class*=actions],[class*=meta],[class*=caption],[class*=stamp],[class*=hint],[class*=tools],[class*=badge],[class*=timing]){font-size:13px !important;white-space:normal !important;overflow-wrap:anywhere !important}",
 			/* 状态统计行可读性（允许换行防截断） */
 			"  body.dsh-mobile-ui [class*=statsRow],body.dsh-mobile-ui [class*=summaryRow],body.dsh-mobile-ui [class*=metrics]{font-size:12px !important;white-space:normal !important;overflow-wrap:anywhere}",
 			/* 头像缩小省空间 */
 			"  body.dsh-mobile-ui [class*=avatar]{width:28px !important;height:28px !important}",
+			/* AI 正文与工具行视觉分隔 */
+			"  body.dsh-mobile-ui [class*=markdown]{margin-top:6px}",
+			/* 头部标题允许换行（防截断） */
+			"  body.dsh-mobile-ui [class*=header] [class*=title],body.dsh-mobile-ui [class*=crumbs]{white-space:normal;overflow-wrap:anywhere}",
+			/* 输入框聚焦反馈 */
+			"  body.dsh-mobile-ui textarea:focus,body.dsh-mobile-ui [class*=input]:focus-within{outline:none;box-shadow:0 0 0 2px var(--dsw-alias-brand-primary,rgba(79,124,255,.45))}",,
 			"}",
+			/* 底部导航栏（移动端）增强样式 */
+			"#dsh-mobile-tabbar{position:fixed;left:0;right:0;bottom:0;z-index:2147483000;display:none;height:calc(58px + env(safe-area-inset-bottom,0px));padding-bottom:env(safe-area-inset-bottom,0px);align-items:stretch;background:var(--dsw-alias-bg-layer-1,rgba(22,23,27,.96));backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-top:1px solid var(--dsw-alias-border-l2,rgba(255,255,255,.14));box-shadow:0 -4px 20px rgba(0,0,0,.25)}",
+			"#dsh-mobile-tabbar button{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-height:50px;background:none;border:none;color:var(--dsw-alias-label-secondary,rgba(255,255,255,.6));font-size:12px;line-height:1;cursor:pointer;padding:8px 0 2px;border-radius:10px;margin:3px 6px;transition:color .15s ease,background .15s ease}",
+			"#dsh-mobile-tabbar button svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}",
+			"#dsh-mobile-tabbar button:active{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08))}",
+			"#dsh-mobile-tabbar button.dsh-mobile-active{color:var(--dsw-alias-brand-primary,#4f7cff)}",
+			"#dsh-mobile-tabbar button.dsh-mobile-active::before{content:'';position:absolute;top:2px;left:50%;transform:translateX(-50%);width:24px;height:3px;border-radius:2px;background:var(--dsw-alias-brand-primary,#4f7cff)}",
+			"#dsh-mobile-tabbar button{position:relative}",
+			/* 抽屉视觉：右侧圆角 + 更实背景 */
+			"body.dsh-mobile-ui [class*=sidebarCol].dsh-mobile-drawer{border-radius:0 18px 18px 0}",
 		].join("\n");
 
 		function injectStyle() {
@@ -150,8 +174,8 @@ window.__ModuleLoader__.load({
 									} else if (d.key === "sessions") {
 										openDrawer();
 									} else if (d.key === "settings") {
-										var sa = document.querySelector("[class*=settingsArea] button");
-										if (sa) { sa.click(); }
+										var sb = document.querySelector("button[aria-label=设置]");
+										if (sb) { sb.click(); }
 										else { openDrawer(); }
 									}
 								} catch (e) { /* 入口转发失败静默 */ }
@@ -168,6 +192,9 @@ window.__ModuleLoader__.load({
 					side.classList.add("dsh-mobile-drawer");
 					if (scrim) scrim.classList.add("dsh-mobile-visible");
 					drawerOpen = true;
+					/* 折叠态 sidebar 只有图标 rail，展开以显示会话列表 */
+					var tog = findSidebarButton("打开侧边栏");
+					if (tog) { try { tog.click(); } catch (e) {} }
 				}
 				function closeDrawer() {
 					var side = getSidebar();
