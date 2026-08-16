@@ -146,9 +146,16 @@ window.__ModuleLoader__.load({
 			"body.dsh-mobile-ui [class*=uV2eYG_trailing]{gap:2px !important}",
 			/* 会话页（有上下文按钮）：上下文 margin-left 右移 12px（只扩模型↔上下文间距） */
 			"body.dsh-mobile-ui [class*=uV2eYG_trailing]:has(button[aria-label*=上下文]) button[aria-label*=上下文]{margin-left:12px !important}",
-			"body.dsh-mobile-ui [class*=VOzbGW_nav]{width:110px !important;flex:0 0 110px !important;min-width:110px !important;overflow:visible !important}",
+			"body.dsh-mobile-ui [class*=VOzbGW_nav]{width:88px !important;flex:0 0 88px !important;min-width:88px !important;overflow:visible !important}",
 			"body.dsh-mobile-ui [class*=VOzbGW_nav] [class*=navList]{flex:1 1 auto !important;height:auto !important;max-height:none !important;overflow-y:auto !important}",
-			"body.dsh-mobile-ui [class*=VOzbGW_content]{flex:1 1 auto !important;min-width:0 !important;max-width:calc(100% - 110px) !important;padding:0 12px !important;overflow:hidden !important}",
+			"body.dsh-mobile-ui [class*=VOzbGW_nav] button,body.dsh-mobile-ui [class*=VOzbGW_nav] [role=button]{white-space:nowrap !important;overflow:hidden !important;text-overflow:ellipsis !important}",
+			/* 选项卡改竖排（icon 上/文字下居中）：dsh 默认横排 icon+88px 标签总宽 112px，
+			   88px 窄栏放不下会裁掉文字；竖排后 88px 宽容纳 4 字标签 */
+			"body.dsh-mobile-ui [class*=VOzbGW_nav] [class*=navCell]{flex-direction:column !important;justify-content:center !important;align-items:center !important;gap:4px !important;padding:4px 0 !important}",
+			"body.dsh-mobile-ui [class*=VOzbGW_nav] [class*=navCell] svg{width:20px !important;height:20px !important;flex:0 0 auto !important}",
+			"body.dsh-mobile-ui [class*=VOzbGW_nav] [class*=navLabel]{flex:0 0 auto !important;width:auto !important;max-width:100% !important;min-width:0 !important;text-align:center !important;font-size:12px !important;line-height:1.2 !important}",
+			"body.dsh-mobile-ui [class*=VOzbGW_nav] [class*=navTitle]{width:100% !important;box-sizing:border-box !important;padding:0 8px !important;white-space:nowrap !important;overflow:hidden !important;text-overflow:ellipsis !important}",
+			"body.dsh-mobile-ui [class*=VOzbGW_content]{flex:1 1 auto !important;min-width:0 !important;max-width:calc(100% - 88px) !important;padding:0 12px !important;overflow:hidden !important}",
 			/* 头部防重叠加固：关闭按钮固定右侧 + 打开配置文件允许收缩 */
 			"body.dsh-mobile-ui [class*=VOzbGW_header]{display:flex !important;align-items:center !important;justify-content:flex-end !important;gap:8px !important;padding:0 12px !important}",
 			"body.dsh-mobile-ui [class*=VOzbGW_close]{flex:0 0 28px !important;margin-left:0 !important}",
