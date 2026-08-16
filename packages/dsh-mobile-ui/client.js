@@ -161,6 +161,10 @@ window.__ModuleLoader__.load({
 			"body.dsh-mobile-ui [class*=VOzbGW_content] [class*=title],body.dsh-mobile-ui [class*=VOzbGW_content] [class*=rowText]{width:100% !important;max-width:100% !important;white-space:normal !important;overflow-wrap:anywhere !important}",
 			"body.dsh-mobile-ui [class*=VOzbGW_content] [class*=title]{display:block !important;flex:1 1 auto !important;align-self:stretch !important}",
 			"body.dsh-mobile-ui [class*=VOzbGW_content] [class*=rowText]{flex:1 1 auto !important;min-width:0 !important}",
+			/* 会话行操作菜单（dsh portal 弹层，原 z-index:1100）提升层级：
+			   抽屉(2147482995)/遮罩(2147482990)层级过高会把菜单盖住（归档等操作不可见）。
+			   仅移动端提升，菜单 fixed 定位不受抽屉 overflow 裁剪；QA 卡片(2147482999)仍居最上 */
+			"body.dsh-mobile-ui [class*=_portal_]{z-index:2147482996 !important}",
 		].join("\n");
 
 		function injectStyle() {
