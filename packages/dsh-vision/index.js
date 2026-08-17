@@ -13,6 +13,8 @@
  *   apiKey:        API key（与 apiKeyEnv 至少其一）
  *   apiKeyEnv:     环境变量名（与 apiKey 至少其一；有该环境变量时也尝试
  *                  ~/.dsh/.credentials.yaml 中的同名键）
+ *   apiKeyHeader: 可选；自定义鉴权头名（如 x-opencodex-api-key）。不配置时
+ *                  默认 Authorization: Bearer <key>；配置时用 <name>: <key>。
  *   defaultModel:  默认视觉模型（必填）
  *   visionModels:  cross_check=true 时的核对模型列表（可选，未配置时
  *                  cross_check 不可用）
@@ -44,6 +46,7 @@ export const Config = z.object({
   visionModels: z.array(z.string()),
   maxTokens: z.number(),
   maxImageBytes: z.number(),
+  apiKeyHeader: z.string(),
 });
 
 /** 返回缺失的必填项列表；配置完整返回空数组。 */
@@ -94,8 +97,11 @@ function callVision(config, model, b64, question, signal) {
     }],
   };
   if (config.maxTokens !== void 0) body.max_tokens = config.maxTokens;
+  const authHeader = config.apiKeyHeader
+    ? config.apiKeyHeader + ": " + key
+    : "Authorization: Bearer " + key;
   const cmd = ["curl", "-s", "-m", "150",
-    "-H", "Authorization: Bearer " + key,
+    "-H", authHeader,
     "-H", "Content-Type: application/json",
     "--data", JSON.stringify(body), url];
 
