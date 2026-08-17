@@ -57,6 +57,10 @@ done
 [ -n "$PLUGIN" ] || { echo "错误: 缺少 --plugin <name>"; exit 1; }
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [ -n "$SRC" ] || SRC="$HERE"
+# tarball 分发布局：install.sh 在根、插件源码在同名子目录（如 <name>-install/<name>/）
+if [ ! -f "$SRC/package.json" ] && [ -f "$SRC/$PLUGIN/package.json" ]; then
+  SRC="$SRC/$PLUGIN"
+fi
 # 契约预检脚本位置：优先所在仓库 scripts，其次 DSH_PLUGINS_REPO，最后 $HOME/dsh-plugins
 COMMON=""
 for CAND in "$HERE/../../scripts" "${DSH_PLUGINS_REPO:-$HOME/dsh-plugins}/scripts"; do
@@ -258,7 +262,15 @@ if [ "$MODE" = "restart" ]; then
     . "$COMMON/dsh-restart.sh"
     restart_dsh "$ROOT"
   else
-    echo "  [警告] 未找到共享 dsh-restart.sh，请手动重启: systemctl --user restart dsh"
+    # tarball 分发场景无 scripts/dsh-restart.sh：内联 systemd 兜底
+    if command -v systemctl >/dev/null 2>&1 && systemctl --user is-active --quiet dsh.service 2>/dev/null; then
+      echo "  [systemd] dsh.service 托管中 → systemctl --user restart dsh"
+      systemctl --user restart dsh.service
+      sleep 6
+      curl -s --noproxy '*' -o /dev/null -w "  127.0.0.1:3080 页面 -> %{http_code}\n" http://127.0.0.1:3080/ || echo "  [警告] 页面未就绪"
+    else
+      echo "  [警告] 未找到共享 dsh-restart.sh 且无 systemd 托管，请手动重启 dsh web"
+    fi
   fi
 fi
 

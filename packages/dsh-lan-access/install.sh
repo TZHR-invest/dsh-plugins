@@ -347,7 +347,15 @@ if [ "$MODE" = "--restart" ]; then
     . "$HERE/../../scripts/dsh-restart.sh"
     restart_dsh "$ROOT"
   else
-    echo "  [警告] 未找到共享 dsh-restart.sh，请手动重启: systemctl --user restart dsh"
+    # tarball 分发场景无 scripts/dsh-restart.sh：内联 systemd 兜底
+    if command -v systemctl >/dev/null 2>&1 && systemctl --user is-active --quiet dsh.service 2>/dev/null; then
+      echo "  [systemd] dsh.service 托管中 → systemctl --user restart dsh"
+      systemctl --user restart dsh.service
+      sleep 6
+      curl -s --noproxy '*' -o /dev/null -w "  127.0.0.1:3080 页面 -> %{http_code}\n" http://127.0.0.1:3080/ || echo "  [警告] 页面未就绪"
+    else
+      echo "  [警告] 未找到共享 dsh-restart.sh 且无 systemd 托管，请手动重启 dsh web"
+    fi
   fi
   if [ -n "$ROOT" ] && [ -x "$ROOT/node_modules/.bin/dsh" ]; then
     IP=$(hostname -I 2>/dev/null | awk '{print $1}')
