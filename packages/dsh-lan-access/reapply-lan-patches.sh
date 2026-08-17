@@ -146,16 +146,23 @@ else
 fi
 
 # ── 3/6 特权围栏补丁（唯一留在 node_modules 的补丁）────────────────────────
+# 定位 dsh 安装根：优先从正在运行的 dsh web 进程推导（其 cwd 即安装根，覆盖
+# npm 全局安装 node ~/.npm-global/bin/dsh web 的场景），其次 npm root -g，
+# 最后回退 ~/.npm/_npx 缓存。以 dsh-client-connection 存在为准（MR-025）。
 ROOT=""
-PID=$(pgrep -f 'node_modules/.bin/dsh web' 2>/dev/null | head -1)
-if [ -n "${PID:-}" ]; then
+for PID in $(pgrep -f "dsh web" 2>/dev/null); do
+  [ "$PID" = "$$" ] && continue
   CWD=$(readlink "/proc/$PID/cwd" 2>/dev/null || true)
-  [ -n "$CWD" ] && [ -d "$CWD/node_modules/@deepseek-ai" ] && ROOT="$CWD"
+  [ -n "$CWD" ] && [ -d "$CWD/node_modules/@deepseek-ai/dsh-client-connection" ] && ROOT="$CWD" && break
+done
+if [ -z "$ROOT" ]; then
+  G=$(npm root -g 2>/dev/null || true)
+  [ -n "$G" ] && [ -d "$G/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-client-connection" ] && ROOT="$G/@deepseek-ai/dsh"
 fi
 if [ -z "$ROOT" ]; then
   for d in $(ls -dt "$HOME"/.npm/_npx/*/ 2>/dev/null); do
     d=${d%/}
-    [ -d "$d/node_modules/@deepseek-ai" ] || continue
+    [ -d "$d/node_modules/@deepseek-ai/dsh-client-connection" ] || continue
     ROOT="$d"
     break
   done
@@ -231,13 +238,17 @@ fi
 # ── 可选重启 ───────────────────────────────────────────────────────────────
 if [ "$MODE" = "--restart" ]; then
   echo "== 重启服务 =="
+  # 覆盖 npm 全局安装（node ~/.npm-global/bin/dsh web）与 npx 缓存两种启动形态（MR-025）
+  pkill -TERM -f "dsh web" 2>/dev/null
   pkill -TERM -f 'node_modules/.bin/dsh web' 2>/dev/null
   pkill -TERM -f 'npm exec @deepseek-ai/dsh web' 2>/dev/null
   pkill -TERM -f 'sh -c dsh web' 2>/dev/null
   pkill -TERM -f 'dsh/lib/bin.js web' 2>/dev/null
   sleep 3
-  cd "$ROOT" || exit 1
-  setsid nohup ./node_modules/.bin/dsh web >> /tmp/dsh-web.log 2>&1 < /dev/null &
+  DSH_RUN="$ROOT/node_modules/.bin/dsh"
+  if command -v dsh >/dev/null 2>&1; then DSH_RUN="$(command -v dsh)"; fi
+  cd "$(dirname "$DSH_RUN")" || exit 1
+  setsid nohup "$DSH_RUN" web >> /tmp/dsh-web.log 2>&1 < /dev/null &
   echo "新进程 PID=$!"
   sleep 8
   IP=$(hostname -I 2>/dev/null | awk '{print $1}')
