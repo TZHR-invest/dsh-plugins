@@ -247,14 +247,29 @@ if [ "$MODE" = "--restart" ]; then
     . "$HOME/dsh-plugins/scripts/dsh-restart.sh"
     restart_dsh "$ROOT"
   else
-    # tarball 分发场景无 scripts/dsh-restart.sh：内联 systemd 兜底
+    # tarball 分发场景无 scripts/dsh-restart.sh：内联完整重启逻辑（systemd → pkill 回退）
     if command -v systemctl >/dev/null 2>&1 && systemctl --user is-active --quiet dsh.service 2>/dev/null; then
       echo "  [systemd] dsh.service 托管中 → systemctl --user restart dsh"
       systemctl --user restart dsh.service
       sleep 6
       curl -s --noproxy '*' -o /dev/null -w "  127.0.0.1:3080 页面 -> %{http_code}\n" http://127.0.0.1:3080/ || echo "  [警告] 页面未就绪"
     else
-      echo "  [警告] 未找到共享 dsh-restart.sh 且无 systemd 托管，请手动重启 dsh web"
+      echo "  [回退] 无 systemd 托管，pkill + 手动拉起"
+      pkill -TERM -f "dsh web" 2>/dev/null
+      pkill -TERM -f 'node_modules/.bin/dsh web' 2>/dev/null
+      pkill -TERM -f 'npm exec @deepseek-ai/dsh web' 2>/dev/null
+      pkill -TERM -f 'sh -c dsh web' 2>/dev/null
+      pkill -TERM -f 'dsh/lib/bin.js web' 2>/dev/null
+      sleep 3
+      if [ -n "$ROOT" ] && [ -x "$ROOT/node_modules/.bin/dsh" ]; then
+        cd "$ROOT" || exit 1
+        setsid nohup ./node_modules/.bin/dsh web >> /tmp/dsh-web.log 2>&1 < /dev/null &
+        echo "  新进程 PID=$!"
+        sleep 8
+        curl -s --noproxy '*' -o /dev/null -w "  127.0.0.1:3080 页面 -> %{http_code}\n" http://127.0.0.1:3080/ || echo "  [警告] 页面未就绪"
+      else
+        echo "  [警告] 无法定位 dsh 可执行文件，请手动重启 dsh web"
+      fi
     fi
   fi
   IP=$(hostname -I 2>/dev/null | awk '{print $1}')
