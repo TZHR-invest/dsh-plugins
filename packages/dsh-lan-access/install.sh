@@ -342,16 +342,14 @@ fi
 # ── 可选重启并验证 ─────────────────────────────────────────────────────────
 if [ "$MODE" = "--restart" ]; then
   echo "== 重启服务 =="
-  pkill -TERM -f 'node_modules/.bin/dsh web' 2>/dev/null
-  pkill -TERM -f 'npm exec @deepseek-ai/dsh web' 2>/dev/null
-  pkill -TERM -f 'sh -c dsh web' 2>/dev/null
-  pkill -TERM -f 'dsh/lib/bin.js web' 2>/dev/null
-  sleep 3
+  # 统一重启逻辑：systemd 托管优先，回退 pkill（MR-026）
+  if [ -f "$HERE/../../scripts/dsh-restart.sh" ]; then
+    . "$HERE/../../scripts/dsh-restart.sh"
+    restart_dsh "$ROOT"
+  else
+    echo "  [警告] 未找到共享 dsh-restart.sh，请手动重启: systemctl --user restart dsh"
+  fi
   if [ -n "$ROOT" ] && [ -x "$ROOT/node_modules/.bin/dsh" ]; then
-    cd "$ROOT" || exit 1
-    setsid nohup ./node_modules/.bin/dsh web >> /tmp/dsh-web.log 2>&1 < /dev/null &
-    echo "新进程 PID=$!"
-    sleep 8
     IP=$(hostname -I 2>/dev/null | awk '{print $1}')
     TOKEN=""
     [ -f "$DSH/lan-access-token" ] && TOKEN=$(cat "$DSH/lan-access-token")

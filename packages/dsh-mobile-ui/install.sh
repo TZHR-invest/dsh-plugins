@@ -221,14 +221,14 @@ fi
 
 if [ "$MODE" = "restart" ]; then
   echo "== 4/4 重启 dsh =="
-  pkill -TERM -f 'node_modules/.bin/dsh web' 2>/dev/null
-  pkill -TERM -f 'npm exec @deepseek-ai/dsh web' 2>/dev/null
-  sleep 3
-  if [ -n "$ROOT" ] && [ -x "$ROOT/node_modules/.bin/dsh" ]; then
-    cd "$ROOT" || exit 1
-    setsid nohup ./node_modules/.bin/dsh web >> /tmp/dsh-web.log 2>&1 < /dev/null &
-    echo "  新进程 PID=$!"
-    sleep 8
+  # 统一重启逻辑：systemd 托管优先，回退 pkill（MR-026）
+  if [ -n "$COMMON" ] && [ -f "$COMMON/dsh-restart.sh" ]; then
+    . "$COMMON/dsh-restart.sh"
+    restart_dsh "$ROOT"
+  else
+    echo "  [警告] 未找到共享 dsh-restart.sh，请手动重启: systemctl --user restart dsh"
+  fi
+  if [ -x "$ROOT/node_modules/.bin/dsh" ]; then
     curl -s -o /dev/null -w "  127.0.0.1:3080 页面 -> %{http_code}\n" http://127.0.0.1:3080/ || echo "  [警告] 页面未就绪，请稍后手动刷新"
     curl -s -o /dev/null -w "  $PLUGIN bundle -> %{http_code}\n" "http://127.0.0.1:3080/plugins/$PLUGIN/client.js"
   else
