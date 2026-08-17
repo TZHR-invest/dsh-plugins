@@ -1,0 +1,6 @@
+# dsh-auto-archive bundle 层：插入插件行。
+# 由 package.json 的 dsh.bundle.patch 声明引用；profile 将该包列入
+# dsh.profile.bundles 时按序应用本层。name 用包名（非相对路径）。
+- insert:
+    - id: dsh-auto-archive
+      name: dsh-auto-archive

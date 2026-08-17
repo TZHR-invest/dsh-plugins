@@ -1,0 +1,31 @@
+{
+  "name": "dsh-auto-archive",
+  "version": "0.1.0",
+  "description": "自动归档闲置会话：工作区会话闲置 N 天自动加入归档集合（列表隐藏，数据保留，支持 dry-run 预览）",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "cordis.patch.yml",
+    "install.sh",
+    "README.md"
+  ],
+  "keywords": ["dsh", "deepseek-harness", "plugin", "auto-archive", "session", "archive", "闲置归档"],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TZHR-invest/dsh-plugins.git",
+    "directory": "packages/dsh-auto-archive"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/schemastery": "^3.18.1"
+  },
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" }
+  },
+  "license": "MIT"
+}
