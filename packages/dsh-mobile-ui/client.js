@@ -172,6 +172,10 @@ window.__ModuleLoader__.load({
 			   抽屉(2147482995)/遮罩(2147482990)层级过高会把菜单盖住（归档等操作不可见）。
 			   仅移动端提升，菜单 fixed 定位不受抽屉 overflow 裁剪；QA 卡片(2147482999)仍居最上 */
 			"body.dsh-mobile-ui [class*=_portal_]{z-index:2147482996 !important}",
+			/* dsh 模态弹层容器提升：目录选择(添加工作区)/Modal 的 portal root 是 fixed z-index:1000，
+			   会被抽屉(2147482995)/遮罩(2147482990)盖住 → 弹框不可见。
+			   [role=dialog] 定位容器统一提升到 2996 与菜单同级(< QA 2999) */
+			"body.dsh-mobile-ui div:has(> [role=dialog]){z-index:2147482996 !important}",
 		].join("\n");
 
 		function injectStyle() {
