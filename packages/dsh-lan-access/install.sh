@@ -343,11 +343,16 @@ fi
 if [ "$MODE" = "--restart" ]; then
   echo "== 重启服务 =="
   # 统一重启逻辑：systemd 托管优先，回退 pkill（MR-026）
-  if [ -f "$HERE/../../scripts/dsh-restart.sh" ]; then
+  if [ -f "$HERE/_dsh-common/dsh-restart.sh" ]; then
+    # tarball 内自带共享重启脚本（package.sh 打入 _dsh-common/）
+    . "$HERE/_dsh-common/dsh-restart.sh"
+    restart_dsh "$ROOT"
+  elif [ -f "$HERE/../../scripts/dsh-restart.sh" ]; then
+    # 开发环境：dsh-plugins 仓库 scripts/
     . "$HERE/../../scripts/dsh-restart.sh"
     restart_dsh "$ROOT"
   else
-    # tarball 分发场景无 scripts/dsh-restart.sh：内联完整重启逻辑（systemd → pkill 回退）
+    # 极端场景（无共享脚本）：内联完整重启逻辑（systemd → pkill 回退）
     if command -v systemctl >/dev/null 2>&1 && systemctl --user is-active --quiet dsh.service 2>/dev/null; then
       echo "  [systemd] dsh.service 托管中 → systemctl --user restart dsh"
       systemctl --user restart dsh.service

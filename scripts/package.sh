@@ -22,6 +22,11 @@ for pkg in "$REPO"/packages/*/; do
   [ -f "$pkg/install.sh" ] && cp "$pkg/install.sh" "$OUT/"
   [ -f "$pkg/reapply-lan-patches.sh" ] && cp "$pkg/reapply-lan-patches.sh" "$OUT/"
   [ -f "$pkg/README.md" ] && cp "$pkg/README.md" "$OUT/"
+  # 共享重启脚本打进 tarball（install.sh 统一 source 它，避免内联逻辑漂移）
+  if [ -f "$REPO/scripts/dsh-restart.sh" ]; then
+    mkdir -p "$OUT/_dsh-common"
+    cp "$REPO/scripts/dsh-restart.sh" "$OUT/_dsh-common/"
+  fi
   if [ -f "$OUT/install.sh" ]; then
     tar czf "$REPO/dist/$PKGNAME-install.tar.gz" -C "$TMP" "$NAME-install"
     echo "  -> dist/$PKGNAME-install.tar.gz"
