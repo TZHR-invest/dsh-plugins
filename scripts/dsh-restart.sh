@@ -37,15 +37,29 @@ dsh_find_root() {
   echo "$ROOT"
 }
 
+# 探测当前活跃的 dsh systemd 用户服务名（dsh.service 优先，dsh-web.service 兜底；
+# 兼容不同部署命名）。无活跃服务时输出空串（= 走 pkill 回退）。
+dsh_systemd_service() {
+  local SVC
+  for SVC in dsh.service dsh-web.service; do
+    if command -v systemctl >/dev/null 2>&1 && systemctl --user is-active --quiet "$SVC" 2>/dev/null; then
+      echo "$SVC"
+      return 0
+    fi
+  done
+  return 1
+}
+
 # 重启 dsh web。参数 $1 可选：dsh 安装根（缺省自动定位）。
 restart_dsh() {
-  local ROOT="${1:-}"
+  local ROOT="${1:-}" SVC
   [ -z "$ROOT" ] && ROOT="$(dsh_find_root)"
   echo "== 重启 dsh web =="
-  # 1) systemd 托管优先
-  if command -v systemctl >/dev/null 2>&1 && systemctl --user is-active --quiet dsh.service 2>/dev/null; then
-    echo "  [systemd] dsh.service 托管中 → systemctl --user restart dsh"
-    systemctl --user restart dsh.service
+  # 1) systemd 托管优先（dsh.service 或 dsh-web.service）
+  SVC="$(dsh_systemd_service)"
+  if [ -n "$SVC" ]; then
+    echo "  [systemd] $SVC 托管中 → systemctl --user restart $SVC"
+    systemctl --user restart "$SVC"
     local rc=$?
     sleep 6
     if [ "$rc" = "0" ]; then

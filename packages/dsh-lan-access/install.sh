@@ -353,9 +353,15 @@ if [ "$MODE" = "--restart" ]; then
     restart_dsh "$ROOT"
   else
     # 极端场景（无共享脚本）：内联完整重启逻辑（systemd → pkill 回退）
-    if command -v systemctl >/dev/null 2>&1 && systemctl --user is-active --quiet dsh.service 2>/dev/null; then
-      echo "  [systemd] dsh.service 托管中 → systemctl --user restart dsh"
-      systemctl --user restart dsh.service
+    SVC=""
+    if command -v systemctl >/dev/null 2>&1; then
+      for SVC in dsh.service dsh-web.service; do
+        systemctl --user is-active --quiet "$SVC" 2>/dev/null && break
+      done
+    fi
+    if [ -n "$SVC" ]; then
+      echo "  [systemd] $SVC 托管中 → systemctl --user restart $SVC"
+      systemctl --user restart "$SVC"
       sleep 6
       curl -s --noproxy '*' -o /dev/null -w "  127.0.0.1:3080 页面 -> %{http_code}\n" http://127.0.0.1:3080/ || echo "  [警告] 页面未就绪"
     else
