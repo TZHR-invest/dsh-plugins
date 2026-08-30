@@ -96,3 +96,25 @@ dsh 升级到 **0.1.1-rc.2** 后，本仓库全部插件（auto-archive / lan-ac
 2. **`~/.dsh/.credentials.yaml` 格式变更**：废弃 `version:` / `refs:` 包装层，改为**纯映射**（key: value 字符串）。旧格式会导致 dsh 启动崩溃（`credentials-local: ... must be a string`）
 
 3. **reapply-lan-patches.sh 的 ROOT 定位依赖运行中进程**（MR-025 逻辑）：升级后需先重启 dsh 再跑 `reapply-lan-patches.sh --check`，否则可能误报补丁缺失（进程 cwd 状态未就绪）
+
+## 7. 其他用户操作速查（新版本 0.1.1-rc.2+，2026-08-31 实测）
+
+**场景 A：全新安装插件**（devbox 实测 uninstall→install→restart 全流程通过）
+```bash
+tar xzf <name>-install.tar.gz && cd <name>-install
+bash install.sh --restart   # 自动接线+打补丁（lan-access）+重启
+```
+
+**场景 B：升级 dsh 版本后**（仅 lan-access 需重打补丁，其他插件不打 node_modules 补丁无需操作）
+```bash
+npm i -g @deepseek-ai/dsh@0.1.1-rc.2
+# 适配宿主层 3 项（见 §6）后重启 dsh
+bash ~/.dsh/reapply-lan-patches.sh --restart   # 幂等恢复 lan-access 补丁
+```
+
+**场景 C：升级插件本身**（重复安装幂等，不重复接线）
+```bash
+bash install.sh --restart
+```
+
+**已验证的幂等性**：cordis.patch.yml 不会重复追加；reapply 6/6 层可重复执行；安装器对已有安装报 [已有] 内容一致。
