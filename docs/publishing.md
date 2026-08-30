@@ -121,3 +121,27 @@ bash install.sh --restart
 ```
 
 **已验证的幂等性**：cordis.patch.yml 不会重复追加；reapply 6/6 层可重复执行；安装器对已有安装报 [已有] 内容一致。
+
+## 8. dsh 版本升级 checklist（devbox 踩坑总结，2026-08-31）
+
+**升级前**（最关键：确认启动命令指向哪）
+```bash
+readlink -f $(which dsh)                                  # CLI 指向
+cat /proc/$(pgrep -f 'dsh web' | head -1)/cmdline         # 服务实际路径（⚠️ 可能与 CLI 不一致！）
+cp -r ~/.dsh ~/.dsh-backup-$(date +%Y%m%d)                # 备份
+cat ~/.dsh/.credentials.yaml                              # 记录当前格式（回滚用）
+```
+
+**升级后**
+```bash
+npm i -g @deepseek-ai/dsh@0.1.1-rc.2
+# ⚠️ 必须确认启动命令指向新版本：
+#   - systemd 托管：改 WorkingDirectory=全局dsh目录 + ExecStart=./lib/bin.js web --trusted-host <IP>
+#   - 启动脚本：改路径
+#   - npx 缓存安装（home-wsl 等）：升级后旧 npx 缓存仍在 → 必须改指向全局或清缓存
+# ⚠️ 版本一致性检查：升级后 CLI 版本必须 = 服务版本（devbox 曾 CLI rc.7 / 服务 rc.6 不一致数月）
+# rc.2 首次启动自动迁移 credentials（无需干预）；但若启动的是旧版会崩（must be a string）
+# 验证：dsh --version / 手机端 settings.describe 200（带 token）/ 插件加载 / reapply-lan-patches.sh --restart
+```
+
+**核心教训**：升级问题 90% 源于「装了新版但服务还在跑旧版」（CLI 与 systemd/脚本指向不一致）。先确认启动路径，再谈升级。
