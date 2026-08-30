@@ -81,3 +81,18 @@ bash ~/.dsh/reapply-lan-patches.sh --restart
 - 插件源码复制时排除 install.sh / reapply-lan-patches.sh / README.md（install.sh 已内置该逻辑）
 
 跑 `bash scripts/package.sh` 即自动打进 tarball。
+
+## 6. dsh 0.1.1-rc.2+ 兼容性（2026-08-31 实测）
+
+dsh 升级到 **0.1.1-rc.2** 后，本仓库全部插件（auto-archive / lan-access / mobile-ui / vision / web-search-metaso）已验证**无需修改即可正常安装运行**（devbox 实测：uninstall → install → restart 全流程通过，插件加载正常）。
+
+但宿主层有三个 **dsh 官方行为变更**，目标机需注意：
+
+1. **dsh web 启动必须显式传 `--trusted-host <LAN_IP>`**
+   - 否则特权 API（settings.describe / credentials.describe 等）对 LAN 请求一律 403（token 也无法绕过）
+   - 症状：手机端/远程浏览器刷新丢配置、模型界面报错（前端降级 process-local）
+   - systemd 托管时改 `ExecStart`：`... dsh web --trusted-host 192.168.0.x`
+
+2. **`~/.dsh/.credentials.yaml` 格式变更**：废弃 `version:` / `refs:` 包装层，改为**纯映射**（key: value 字符串）。旧格式会导致 dsh 启动崩溃（`credentials-local: ... must be a string`）
+
+3. **reapply-lan-patches.sh 的 ROOT 定位依赖运行中进程**（MR-025 逻辑）：升级后需先重启 dsh 再跑 `reapply-lan-patches.sh --check`，否则可能误报补丁缺失（进程 cwd 状态未就绪）
