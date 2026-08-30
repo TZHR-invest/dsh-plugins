@@ -93,7 +93,7 @@ dsh 升级到 **0.1.1-rc.2** 后，本仓库全部插件（auto-archive / lan-ac
    - 症状：手机端/远程浏览器刷新丢配置、模型界面报错（前端降级 process-local）
    - systemd 托管时改 `ExecStart`：`... dsh web --trusted-host 192.168.0.x`
 
-2. **`~/.dsh/.credentials.yaml` 格式变更**：废弃 `version:` / `refs:` 包装层，改为**纯映射**（key: value 字符串）。旧格式会导致 dsh 启动崩溃（`credentials-local: ... must be a string`）
+2. **`~/.dsh/.credentials.yaml` 迁移 bug（⚠️ 升级必踩）**：升级到 0.1.1-rc.2 **首次启动时**，dsh 会把纯映射旧格式**自动迁移**为 `version: 1` + `refs:` 包装——但迁移器输出的 `version: 1` 是**数字**，不符合它自己的 schema（要求字符串），导致**启动崩溃循环**（`credentials-local: the value for "version" ... must be a string`）。**规避**：崩溃后把 `.credentials.yaml` 改回纯映射（删除 `version:`/`refs:` 包装，保留 key: value 即可），或升级前先备份该文件
 
 3. **reapply-lan-patches.sh 的 ROOT 定位依赖运行中进程**（MR-025 逻辑）：升级后需先重启 dsh 再跑 `reapply-lan-patches.sh --check`，否则可能误报补丁缺失（进程 cwd 状态未就绪）
 
