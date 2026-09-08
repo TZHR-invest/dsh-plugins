@@ -57,6 +57,16 @@ const HEARTBEAT_FILE = "/tmp/dsh-auto-archive-heartbeat.log";
  * blank —— 直到出现第一个非 turn/start 事件才变为 false；
  * lastPromptAt —— 仅用户消息（source.kind === "user"）更新。
  */
+function eventsOf(session) {
+  // 0.1.1: session.events 为数组；0.1.2+: sessions.list() 不再暴露 events，
+  // 需经 snapshotEvents() 获取（无则视为空，attached 会话退回 mtime 判定）。
+  if (Array.isArray(session?.events)) return session.events;
+  let snapshot = null;
+  if (typeof session?.snapshotEvents === "function") {
+    try { snapshot = session.snapshotEvents(); } catch { /* 快照失败按空处理 */ }
+  }
+  return Array.isArray(snapshot) ? snapshot : [];
+}
 function foldListMetadata(events) {
   let state = { blank: true, lastPromptAt: null };
   for (const event of events) {
@@ -123,7 +133,7 @@ export function apply(ctx) {
         const meta = session.header;
         if (meta === void 0 || isSubagent(meta)) continue;
         if (isRunning(ctx2, session.id)) continue;
-        const folded = foldListMetadata(session.events);
+        const folded = foldListMetadata(eventsOf(session));
         const updatedAt = Math.max(meta.createdAt ?? 0, folded.lastPromptAt ?? 0);
         attachedCandidates.push({ id: session.id, updatedAt, blank: folded.blank, cold: false });
       }
