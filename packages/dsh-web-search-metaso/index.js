@@ -31,7 +31,6 @@
  */
 import z from "@deepseek-ai/schemastery";
 import { credentialRef } from "@deepseek-ai/dsh-credentials";
-import { installSettingsSection, settingsNamespace } from "@deepseek-ai/dsh-settings";
 import { launchEnvironmentOf } from "@deepseek-ai/dsh-launch-environment";
 import { WebError } from "@deepseek-ai/dsh-web";
 
@@ -44,7 +43,6 @@ export const METASO_DEFAULT_BASE_URL = "https://metaso.cn/api/v1";
 export const METASO_DEFAULT_API_KEY_ENV = "METASO_API_KEY";
 const METASO_SCOPES = ["webpage", "document", "paper", "image", "video", "podcast"];
 const USER_AGENT = "dsh-web-search-metaso/0.1.0";
-const WEB_SEARCH_METASO_SETTINGS_NAMESPACE = settingsNamespace("web-search-metaso");
 
 export const Config = z.object({
   apiKey: z.string().role("secret"),
@@ -269,14 +267,9 @@ function resolveOptions(ctx, config) {
 
 /** 注册 Metaso 搜索与阅读 provider 到 ctx.web。 */
 export function apply(ctx, config) {
-  let current = () => config;
-  installSettingsSection(ctx, WEB_SEARCH_METASO_SETTINGS_NAMESPACE, Config, config, {
-    setSource: (source) => {
-      current = source;
-    },
-    onChange: () => {},
-  });
-  const resolve = () => resolveOptions(ctx, current());
+  // 0.1.2+：@deepseek-ai/dsh-settings 已移除 installSettingsSection/settingsNamespace（UI 设置区注册），
+  // 插件配置一律来自 cordis.patch.yml / 环境变量；如需 UI 编辑需改用新的 ctx.settings register API。
+  const resolve = () => resolveOptions(ctx, config);
   ctx.web.registerSearchProvider(new MetasoSearchProvider(resolve));
   ctx.web.registerFetchProvider(new MetasoFetchProvider(resolve));
 }
