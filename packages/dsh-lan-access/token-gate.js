@@ -1,6 +1,9 @@
-/* [dsh-lan-access] token gate —— 自包含补丁源（v1）。
+/* [dsh-lan-access] token gate —— 自包含补丁源（v2）。
  * 本文件被 patch-webserver.mjs 原样插入到 dsh-host-webserver/lib/index.js，
- * 同时可被独立 import 做单元测试。不要在无补丁的模块外修改本节函数。 */
+ * 同时可被独立 import 做单元测试。不要在无补丁的模块外修改本节函数。
+ * v2（dsh 0.1.2+ 适配）：浏览器原生凭证通道（cookie / /?token= 启动令牌 URL）
+ * 交由 host 的 browserAuth 裁决（需配合 client-connection 补丁把启动令牌固定为
+ * lan-access-token）；门卫只拦"完全无凭证"的裸请求。 */
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -140,7 +143,9 @@ export function lanGateHandleAuth(req, res) {
 			got = new URLSearchParams(body).get("token") || "";
 		} catch {}
 		if (token !== "" && lanGateEquals(got, token)) {
-			res.writeHead(302, { location: "/", "set-cookie": lanGateCookie() });
+			/* v2: launch token 已由 client-connection 补丁固定为 lan-access-token，
+			 * 302 到 /?token= 触发 host browserAuth 交换并种下其原生 cookie。 */
+			res.writeHead(302, { location: "/?token=" + encodeURIComponent(token), "set-cookie": lanGateCookie() });
 			res.end();
 		} else {
 			res.writeHead(401, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
@@ -166,9 +171,16 @@ export function lanGateRequest(req, res) {
 	}
 	const via = lanGateAuthorized(req);
 	if (via === "") {
-		res.writeHead(401, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
-		res.end(lanGatePage(false));
-		return true;
+		/* v2: 放行 host 原生凭证通道（浏览器 cookie 或 /?token= 启动令牌 URL），
+		 * 由 browserAuth 裁决；门卫仅拦截完全无凭证的裸请求。 */
+		const rawH = req.headers;
+		const hasCookie = rawH !== void 0 && (typeof rawH.get === "function" ? rawH.get("cookie") : rawH.cookie) !== void 0;
+		const hasLaunchToken = req.method === "GET" && pathname === "/" && /(?:^|[?&])token=[^&#]+/.test(req.url || "");
+		if (!hasCookie && !hasLaunchToken) {
+			res.writeHead(401, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+			res.end(lanGatePage(false));
+			return true;
+		}
 	}
 	if (via !== "cookie" && !res.headersSent) {
 		res.setHeader("set-cookie", lanGateCookie());

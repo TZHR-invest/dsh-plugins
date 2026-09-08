@@ -173,7 +173,9 @@ if [ -z "$ROOT" ]; then
 fi
 echo "  安装目录: $ROOT"
 F="$ROOT/node_modules/@deepseek-ai/dsh-client-connection/lib/index.js"
-if grep -q 'PRIVILEGED_METHODS.has(method) && !isTrustedApiRequest(request, trustedHosts)' "$F" 2>/dev/null; then
+if grep -q 'isTrustedApiRequest(request, this.trustedHosts)' "$F" 2>/dev/null; then
+  echo "  [已有] 特权围栏（0.1.2+ 官方原生 trustedHosts 实现，无需补丁）"
+elif grep -q 'PRIVILEGED_METHODS.has(method) && !isTrustedApiRequest(request, trustedHosts)' "$F" 2>/dev/null; then
   echo "  [已有] 特权围栏"
 elif [ -f "$F" ]; then
   if [ "$MODE" = "--check" ]; then
@@ -194,10 +196,24 @@ node --check "$F" 2>/dev/null && echo "  语法 OK"
 # ── 4/6 设置持久化放行补丁（第 5 层：浏览器端 settingsScope 强制 host 模式）─
 echo "== 4/6 设置持久化放行补丁 =="
 F4="$ROOT/node_modules/@deepseek-ai/dsh-client-ui-settings/lib/client.js"
-if grep -q 'new SettingsScopeController(connection.api, spec, "host")' "$F4" 2>/dev/null; then
-  echo "  [已有] 设置持久化放行"
-elif [ ! -f "$F4" ]; then
+if [ ! -f "$F4" ]; then
   echo "  [缺失] $F4（该版本可能已无此文件，请人工确认）"
+elif grep -q 'ctx\.remote\.\$host\.isLoopback ? "host" : "memory"' "$F4" 2>/dev/null; then
+  # 0.1.2+ 结构：persistence 由客户端按 isLoopback 选择，需强制 host 使 LAN 可写设置
+  if [ "$MODE" = "--check" ]; then
+    echo "  [缺失] 设置持久化放行（0.1.2+ 结构）"
+  else
+    sed -i 's/ctx\.remote\.\$host\.isLoopback ? "host" : "memory"/"host"/' "$F4"
+    if ! grep -q 'ctx\.remote\.\$host\.isLoopback ? "host" : "memory"' "$F4" && grep -q 'const persistence = "host"' "$F4"; then
+      echo "  [已打] 设置持久化放行（0.1.2+ 结构，LAN 访问也可读写设置）"
+    else
+      echo "  [失败] 设置持久化放行——0.1.2+ 结构适配失败，请人工处理"
+    fi
+  fi
+elif grep -q 'const persistence = "host"' "$F4" 2>/dev/null; then
+  echo "  [已有] 设置持久化放行（0.1.2+ 结构已打）"
+elif grep -q 'new SettingsScopeController(connection.api, spec, "host")' "$F4" 2>/dev/null; then
+  echo "  [已有] 设置持久化放行"
 elif [ "$MODE" = "--check" ]; then
   echo "  [缺失] 设置持久化放行"
 else
@@ -228,6 +244,27 @@ else
     echo "  [失败] webserver 令牌门卫——请人工处理"
   fi
   [ -f "$FW" ] && node --check "$FW" 2>/dev/null && echo "  语法 OK"
+fi
+
+# ── 6/6 client-connection 局域网令牌补丁（dsh 0.1.2+：launch token 固定 +
+#      X-DSH-Token API 通道；配合 5/6 门卫 v2 完成 LAN 浏览器/API 闭环）─────────
+echo "== 6/6 client-connection 局域网令牌补丁 =="
+FC="$ROOT/node_modules/@deepseek-ai/dsh-client-connection/lib/index.js"
+if [ ! -f "$SRC/patch-client-connection.mjs" ]; then
+  echo "  [缺失] $SRC/patch-client-connection.mjs（插件源码不完整，请更新 dsh-lan-gateway/dsh-lan-access 至含 0.1.2 适配版本）"
+elif [ "$MODE" = "--check" ]; then
+  if node "$SRC/patch-client-connection.mjs" "$FC" --check; then
+    echo "  [已有] client-connection 令牌补丁"
+  else
+    echo "  [缺失] client-connection 令牌补丁"
+  fi
+else
+  if node "$SRC/patch-client-connection.mjs" "$FC"; then
+    echo "  [已打] client-connection 令牌补丁（launch token 固定 + X-DSH-Token API 通道）"
+  else
+    echo "  [失败] client-connection 令牌补丁——请人工处理"
+  fi
+  [ -f "$FC" ] && node --check "$FC" 2>/dev/null && echo "  语法 OK"
 fi
 
 if [ "$MODE" = "--check" ]; then
