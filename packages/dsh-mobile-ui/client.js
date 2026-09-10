@@ -71,13 +71,26 @@ window.__ModuleLoader__.load({
 			"  body.dsh-mobile-ui [class*=composerHero] > [class*=heroWorkspaceRow]{flex:0 0 auto !important;height:auto !important}",
 			/* 工作区行内按钮豁免 44px 触摸高（保持 28px 原高） */
 			"  body.dsh-mobile-ui [class*=heroWorkspaceRow] button{min-height:28px !important;min-width:0 !important;height:auto !important}",
-		/* QA 问答卡片（Mbwy4a）移动端适配：全屏弹层（与设置面板同构）——
-		   seat 固定铺满视口 + 内部滚动，footer（跳过/提交）sticky 钉屏幕底部。
-		   任何设备/视口/系统字体下提交按钮都必然可见；QA 关闭后自动恢复 */
-		"  body.dsh-mobile-ui [class*=composerSeat].dsh-mobile-qa{position:fixed !important;top:100px !important;left:8px !important;right:8px !important;bottom:auto !important;margin:0 !important;z-index:2147482999 !important;padding:12px !important;max-height:calc(100vh - 150px) !important;max-height:calc(100dvh - 150px) !important;overflow-y:auto !important;background:transparent !important}",
-			"  body.dsh-mobile-ui [class*=Mbwy4a_card]{width:100% !important;max-width:none !important}",
-			"  body.dsh-mobile-ui [class*=Mbwy4a_body]{overflow:visible !important}",
-			"  body.dsh-mobile-ui [class*=Mbwy4a_footer]{position:sticky !important;bottom:0 !important;background:var(--dsw-alias-bg-layer-1,rgb(44,44,46)) !important}",
+		/* ── QA 问答卡片（ask_user_question）移动端适配 ─────────────────────
+		   ⚠️ 2026-09-11 复现定案的坑（现象：选项看不全、手指滑动也翻不出来）：
+		   上游卡片自带 max-height:min(60vh,520px) + overflow:hidden，真正的滚动容器
+		   是它内部的 body（上游 overflow-y:auto）。旧规则把 body 的 overflow 覆盖成
+		   visible → ①超出卡片的选项被卡片直接裁掉；②body 不再是滚动容器；
+		   ③覆盖层因卡片被 60vh 卡死而没有可滚内容 → 滑动毫无反应、选项永久不可见。
+		   （实测 6 选项：body scrollHeight 1047 / clientHeight 319，滑动后几何零变化）
+		   修法三原则：①绝不覆盖 body 的 overflow（保留上游唯一滚动容器）；
+		     ②覆盖层撑满可视高度、卡片 max-height:100%（不再被 60vh 卡死）；
+		     ③覆盖层自身 overflow:hidden，杜绝双层滚动互抢手势。
+		   选择器优先用上游稳定属性 data-question-key（frame）/ data-question-scroll（body）
+		   / data-composer-seat（seat），hash 类名只作兜底，降低 dsh 升级后的漂移风险。 */
+		"  body.dsh-mobile-ui [class*=composerSeat].dsh-mobile-qa,body.dsh-mobile-ui [data-composer-seat].dsh-mobile-qa{position:fixed !important;top:calc(12px + env(safe-area-inset-top,0px)) !important;left:8px !important;right:8px !important;bottom:calc(12px + env(safe-area-inset-bottom,0px)) !important;margin:0 !important;z-index:2147482999 !important;padding:0 !important;max-height:none !important;overflow:hidden !important;background:transparent !important;display:flex !important;flex-direction:column !important}",
+		"  body.dsh-mobile-ui [data-question-key] > section,body.dsh-mobile-ui [class*=Mbwy4a_card]{width:100% !important;max-width:none !important;border:1px solid var(--dsw-alias-border-l2,rgba(255,255,255,.14)) !important;box-shadow:0 10px 34px rgba(0,0,0,.45) !important}",
+		"  body.dsh-mobile-ui [class*=composerSeat].dsh-mobile-qa [data-question-key],body.dsh-mobile-ui [data-composer-seat].dsh-mobile-qa [data-question-key],body.dsh-mobile-ui [class*=composerSeat].dsh-mobile-qa [class*=Mbwy4a_frame]{flex:1 1 auto !important;min-height:0 !important;padding:0 !important;align-items:flex-start !important}",
+		"  body.dsh-mobile-ui [class*=composerSeat].dsh-mobile-qa [data-question-key] > section,body.dsh-mobile-ui [data-composer-seat].dsh-mobile-qa [data-question-key] > section,body.dsh-mobile-ui [class*=composerSeat].dsh-mobile-qa [class*=Mbwy4a_card]{max-height:100% !important;min-height:0 !important}",
+		/* 正文：唯一滚动容器（覆盖层态与普通流态都生效——JS 标记失败也不会再被裁掉）；
+		   overscroll-behavior 防滑动穿透到会话消息流 */
+		"  body.dsh-mobile-ui [data-question-scroll],body.dsh-mobile-ui [class*=Mbwy4a_body]{flex:1 1 auto !important;min-height:0 !important;overflow-y:auto !important;-webkit-overflow-scrolling:touch !important;overscroll-behavior:contain !important;touch-action:pan-y !important}",
+		"  body.dsh-mobile-ui [class*=Mbwy4a_footer]{position:sticky !important;bottom:0 !important;background:var(--dsw-alias-bg-layer-1,rgb(44,44,46)) !important}",
 			/* QA footer 防溢出：内容超宽时换行（跳过/提交换行后仍可见，提交永不被裁） */
 			"  body.dsh-mobile-ui [class*=Mbwy4a_footer]{flex-wrap:wrap !important;row-gap:4px !important}",
 			"  body.dsh-mobile-ui [class*=Mbwy4a_footer] [class*=footerActions]{flex-wrap:wrap !important;min-width:0 !important}",
@@ -315,17 +328,22 @@ window.__ModuleLoader__.load({
 								}
 							}
 							document.body.classList.add("dsh-mobile-ui");
-							/* QA 弹层标记：JS 检测 Mbwy4a 卡片（不依赖 :has，兼容微信 X5 等旧内核）。
-							   加 class 到 composerSeat，CSS 据此全屏化；卡片消失即移除 */
+							/* QA 弹层标记：JS 检测提问卡片（不依赖 :has，兼容微信 X5 等旧内核）。
+							   加 class 到 composerSeat，CSS 据此覆盖层化；卡片消失即移除。
+							   定位优先用上游稳定属性 data-question-key / data-composer-seat
+							   （hash 类名在 dsh 升级后会漂移，只作兜底） */
 							try {
-								var qaFrame = document.querySelector("[class*=Mbwy4a_frame]");
+								var qaFrame = document.querySelector("[data-question-key],[class*=Mbwy4a_frame]");
 								var qaSeat = null;
 								if (qaFrame) {
-									var qn = qaFrame.parentElement;
-									while (qn) { if ((typeof qn.className === "string" ? qn.className : "").indexOf("composerSeat") >= 0) { qaSeat = qn; break; } qn = qn.parentElement; }
+									if (typeof qaFrame.closest === "function") qaSeat = qaFrame.closest("[data-composer-seat],[class*=composerSeat]");
+									if (!qaSeat) {
+										var qn = qaFrame.parentElement;
+										while (qn) { if ((typeof qn.className === "string" ? qn.className : "").indexOf("composerSeat") >= 0) { qaSeat = qn; break; } qn = qn.parentElement; }
+									}
 								}
 								if (qaSeat) qaSeat.classList.add("dsh-mobile-qa");
-								else { var qOld = document.querySelector("[class*=composerSeat].dsh-mobile-qa"); if (qOld) qOld.classList.remove("dsh-mobile-qa"); }
+								else { var qOld = document.querySelector(".dsh-mobile-qa"); if (qOld) qOld.classList.remove("dsh-mobile-qa"); }
 							} catch (e) { /* QA 标记失败静默 */ }
 							/* hero 标题置顶改由纯 CSS 实现（composerHero 撑满视口 + 输入卡沉底），
 							   不再用 insertBefore 搬动 React 节点——移动节点会导致 React 重渲染

@@ -42,7 +42,8 @@ Fast local iteration: copy to `~/.dsh/profiles/node_modules/dsh-mobile-ui/` and 
 
 - **CSS layer**: injects `style[data-plugin-css=dsh-mobile-ui]`, all rules wrapped in `@media (max-width:768px)` — desktop loads none of it
 - **JS layer**: `matchMedia`-driven; on narrow screens the main grid goes single-column, the sidebar is hidden and becomes a fixed overlay drawer with scrim
-- **QA card** (`ask_user_question`, Mbwy4a component): JS detects the card and pins it as a floating panel (`position:fixed; top:100px`) — no `:has()` dependency (works in WeChat/X5-style engines); the footer button row wraps when narrow, so the submit button is always visible; conversation stays visible below
+- **QA card** (`ask_user_question`, Mbwy4a component): JS detects the card and turns its composer seat into a full-height floating panel — no `:has()` dependency (works in WeChat/X5-style engines). The card's own `max-height` is lifted and its body stays the single scroll container, so long option lists scroll with a finger on every device; the footer button row wraps when narrow, so the submit button is always visible
+- **Regression probe**: `python3 tests/mobile-layout-probe.py` drives a real headless Chromium (upstream CSS + real DOM nesting + the actual plugin bundle) across viewports and option counts, asserting "option list scrolls / last option reachable after a real touch swipe / submit always visible". Exit code 1 on regression — never override the card body's `overflow` (that is exactly what broke it before)
 
 ## Maintenance notes (important)
 

@@ -28,7 +28,15 @@ bash install.sh --uninstall  # 卸载
 ```bash
 bash scripts/build.sh                       # 语法 + 契约预检（含 classic-script 校验）
 bash scripts/package.sh                     # 打包 dist/dsh-mobile-ui-install.tar.gz
+python3 tests/mobile-layout-probe.py        # 移动端布局回归探针（提问卡片可滚动/选项可达）
 ```
+
+**提问卡片回归探针**（`tests/mobile-layout-probe.py`）：用真实上游 CSS + 真实 DOM 嵌套 +
+真实插件代码，在 headless Chromium 里按视口 × 选项数跑矩阵，断言「正文可滚 / 真实手指
+滑动后最后一个选项可见 / 提交按钮始终可见」，回归时退出码 1。它守的是一条硬纪律——
+**绝不要覆盖提问卡片正文（`Mbwy4a_body` / `data-question-scroll`）的 overflow**：
+上游卡片是 `max-height:min(60vh,520px)+overflow:hidden`，正文才是它唯一的滚动容器，
+把它改成 `visible` 会让放不下的选项被卡片直接裁掉、且再也滚不出来（2026-09-11 修复的真实故障）。
 
 本地快速迭代：复制到 `~/.dsh/profiles/node_modules/dsh-mobile-ui/` 后刷新页面
 （客户端插件有 HMR 通道，改 client.js 后页面自动更新）。
@@ -41,6 +49,10 @@ bash scripts/package.sh                     # 打包 dist/dsh-mobile-ui-install.
   注入右上角菜单按钮 + 遮罩；菜单把侧边栏临时变为 fixed 抽屉（overlay）。
 - **hero 标题置顶**：纯 CSS 实现——composerHero 栈在 hero 态撑满视口
   （flex:1），输入卡 margin-top:auto 沉底，标题/工作区行自然留在顶部。
+- **提问卡片**：JS 检测到卡片后把它的 composerSeat 变成铺满可视高度的浮层，
+  卡片自身的 max-height 放开、正文保持为唯一滚动容器（卡片内 `data-question-scroll`），
+  footer 钉在浮层底部。选择器优先用上游稳定属性（`data-question-key` /
+  `data-question-scroll` / `data-composer-seat`），hash 类名只作兜底。
 
 ## 维护须知（重要）
 
@@ -54,6 +66,12 @@ bash scripts/package.sh                     # 打包 dist/dsh-mobile-ui-install.
   pXSMma_root 等）：React fiber 树仍记录旧父节点，重渲染时 removeChild 抛
   NotFoundError，整个会话视图被卸载 → 页面空白。布局需求一律用 CSS
   （flex/order/:has）表达；hero 标题置顶即纯 CSS 实现。
+- **严禁覆盖提问卡片正文的 overflow**（2026-09-11 故障根因，已由探针看住）：
+  上游 `.card{max-height:min(60vh,520px);overflow:hidden}` 且 `.body{overflow-y:auto}`
+  ——正文是卡片内唯一滚动容器。改成 `overflow:visible` 会造成
+  「选项看不全 + 手指滑动毫无反应」：卡片把放不下的选项裁掉，正文又不再滚动，
+  浮层里也没有可滚内容（实测 6 选项时 body 内容 1047px / 可见 319px，滑动后几何零变化）。
+  正确做法是**给正文更多高度**（浮层撑满视口 + 卡片 max-height:100%），而不是动它的 overflow。
 
 ## 回滚
 
