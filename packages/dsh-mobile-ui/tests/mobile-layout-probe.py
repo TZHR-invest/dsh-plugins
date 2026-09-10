@@ -95,13 +95,14 @@ html,body{{margin:0;padding:0;height:100%;background:var(--dsw-alias-bg-base);co
   font-family:-apple-system,"PingFang SC",system-ui,sans-serif}}
 {conv_css}
 {qq_css}
+/* 顶层容器必须带 frame 词根：插件靠 [class*=frame] 找主布局（真实 dsh 同构） */
 #app{{height:100%;display:grid;grid-template-columns:260px minmax(0,1fr) 0px}}
 .sidebarCol{{background:#1a1b1f;border-right:1px solid rgba(255,255,255,.08)}}
 .detailsCol{{background:#1a1b1f}}
 .msg{{padding:10px 14px;margin:8px 12px;border-radius:12px;background:#22232a;line-height:1.5}}
 </style></head>
 <body>
-<div id="app">
+<div id="app" class="frame">
   <div class="sidebarCol" data-testid="sidebar">sidebar</div>
   <div class="wSkVaW_root" data-phase="active">
     <div class="wSkVaW_header" style="padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.08)">会话标题</div>
@@ -177,6 +178,8 @@ MEASURE_JS = r"""
     bodyScroll: body ? body.scrollHeight - body.clientHeight : 0,
     last: vis(opts[opts.length-1]),
     submit: vis(q('[class*=Mbwy4a_primary]')),
+    // 右上角菜单按钮在提问卡片打开时必须隐藏，否则会浮在卡片右上角遮住问题标题
+    menuBtnDisplay: (() => { const m = document.getElementById('dsh-mobile-menu-btn'); return m ? getComputedStyle(m).display : null; })(),
   };
 }
 """
@@ -214,13 +217,17 @@ def probe(plugin, viewport, options, detail_paras, workdir):
 
         before = page.evaluate(MEASURE_JS)
 
-        # 真实手指滑动（touch 事件；滚轮不等价：移动端页面常只响应 touch）
+        # 真实手指滑动（touch 事件；滚轮不等价：移动端页面常只响应 touch）。
+        # 反复滑动直到末项可见（模拟用户持续上滑），最多 8 次；
+        # 滚不动的情况下滑多少次都不会可见 —— 因此不会掩盖真问题。
         body = page.query_selector("[data-question-scroll]")
         box = body.bounding_box()
+        swipes = 0
+        after_swipe = before
         if box:
             cx, y0, y1 = box["x"] + box["width"] / 2, box["y"] + box["height"] - 24, box["y"] + 24
             cdp = ctx.new_cdp_session(page)
-            for _ in range(2):
+            while swipes < 8:
                 cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [{"x": cx, "y": y0}]})
                 for i in range(1, 11):
                     cdp.send("Input.dispatchTouchEvent", {
@@ -228,7 +235,10 @@ def probe(plugin, viewport, options, detail_paras, workdir):
                     page.wait_for_timeout(16)
                 cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
                 page.wait_for_timeout(200)
-        after_swipe = page.evaluate(MEASURE_JS)
+                swipes += 1
+                after_swipe = page.evaluate(MEASURE_JS)
+                if after_swipe["last"]["ok"]:
+                    break
         browser.close()
 
     return {
@@ -239,6 +249,8 @@ def probe(plugin, viewport, options, detail_paras, workdir):
         "needs_scroll": (before["bodyScroll"] or 0) > 1,
         "last_visible_after_swipe": after_swipe["last"]["ok"],
         "submit_visible": before["submit"]["ok"],
+        "menu_btn_hidden_while_qa": before["menuBtnDisplay"] == "none",
+        "swipes_to_reach_last": swipes,
         "seat_qa": before["seatQa"],
         "detail": {"before": before, "after_swipe": after_swipe},
     }
@@ -268,7 +280,8 @@ def main() -> int:
 
     failures = [
         r for r in results
-        if not r["last_visible_after_swipe"] or not r["submit_visible"] or (r["needs_scroll"] and not r["scrollable"])
+        if not r["last_visible_after_swipe"] or not r["submit_visible"]
+        or not r["menu_btn_hidden_while_qa"] or (r["needs_scroll"] and not r["scrollable"])
     ]
 
     if args.json:
@@ -277,12 +290,13 @@ def main() -> int:
         return 1 if failures else 0
     else:
         print(f"被测插件: {plugin}")
-        print(f"{'视口':<10} {'选项数':<7} {'内容溢出':<9} {'正文可滚':<9} {'滑动后末项可见':<15} {'提交可见':<9}")
-        print("-" * 66)
+        print(f"{'视口':<10} {'选项数':<7} {'内容溢出':<9} {'正文可滚':<9} {'滑动后末项可见':<15} {'提交可见':<9} {'菜单不遮挡':<10}")
+        print("-" * 78)
         for r in results:
             print(f"{r['viewport']:<10} {r['options']:<8} {'是' if r['needs_scroll'] else '否':<10} "
                   f"{'✓' if r['scrollable'] else ('—' if not r['needs_scroll'] else '✗'):<10} "
-                  f"{'✓' if r['last_visible_after_swipe'] else '✗':<16} {'✓' if r['submit_visible'] else '✗':<10}")
+                  f"{'✓' if r['last_visible_after_swipe'] else '✗':<16} {'✓' if r['submit_visible'] else '✗':<10} "
+                  f"{'✓' if r['menu_btn_hidden_while_qa'] else '✗':<10}")
 
     print()
     if failures:
@@ -290,7 +304,7 @@ def main() -> int:
         for r in failures:
             print(f"   - {r['viewport']} options={r['options']}: {r['detail']['before']}")
         return 1
-    print(f"✅ 全部 {len(results)} 个用例通过：选项可滚可见、提交按钮始终可见")
+    print(f"✅ 全部 {len(results)} 个用例通过：选项可滚可见、提交按钮始终可见、菜单按钮不遮挡卡片")
     return 0
 
 

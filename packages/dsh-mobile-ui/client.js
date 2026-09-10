@@ -217,6 +217,7 @@ window.__ModuleLoader__.load({
 				var scrim = null;
 				var drawerOpen = false;
 				var settingsOpen = false;   /* 设置弹层打开标志（弹层关闭时恢复导航栏） */
+				var qaOpen = false;         /* 提问卡片打开标志（卡片浮层打开时隐藏右上角菜单，防遮挡标题） */
 				var savedGrid = null;   /* 窄屏前的 frame 原始 grid（宽屏恢复用） */
 
 				/* 主布局 frame：display:grid 的顶层容器（CSS 生效前 3 列 / 生效后 1 列均可） */
@@ -342,6 +343,7 @@ window.__ModuleLoader__.load({
 										while (qn) { if ((typeof qn.className === "string" ? qn.className : "").indexOf("composerSeat") >= 0) { qaSeat = qn; break; } qn = qn.parentElement; }
 									}
 								}
+								qaOpen = !!qaSeat;
 								if (qaSeat) qaSeat.classList.add("dsh-mobile-qa");
 								else { var qOld = document.querySelector(".dsh-mobile-qa"); if (qOld) qOld.classList.remove("dsh-mobile-qa"); }
 							} catch (e) { /* QA 标记失败静默 */ }
@@ -357,9 +359,13 @@ window.__ModuleLoader__.load({
 							/* 抽屉态下 sidebar 保持可见，否则隐藏 */
 							side.style.display = drawerOpen ? "" : "none";
 							ensureChrome();
-							if (tabbar) tabbar.style.display = drawerOpen ? "none" : "";
+							/* 菜单按钮三态判定：抽屉 / 设置面板 / 提问卡片浮层打开时都隐藏。
+							   （旧写法只看 drawerOpen，会把设置面板打开时隐藏的菜单在下次 sync 又显示回来；
+							   提问卡片时则会浮在卡片右上角遮住问题标题） */
+							if (tabbar) tabbar.style.display = (drawerOpen || settingsOpen || qaOpen) ? "none" : "";
 						} else {
 							document.body.classList.remove("dsh-mobile-ui");
+							qaOpen = false;
 							var frame2 = findFrame();
 							if (frame2) {
 								if (savedGrid) frame2.style.gridTemplateColumns = savedGrid;
