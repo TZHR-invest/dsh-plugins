@@ -2,6 +2,39 @@
 
 目标：把仓库里的插件包分发到其他机器/环境的 dsh 上，一条命令装好。
 
+## 0. 三条分发渠道与「必须升版本」纪律（2026-09-11 定案，先读这条）
+
+本仓库的插件同时经 **三条渠道** 到达用户，三者必须同版本、同内容：
+
+| 渠道 | 载体 | 谁在用 |
+|---|---|---|
+| npm | `npm i <包名>` | 外部/社区用户 |
+| tarball | `dist/<name>-install.tar.gz` | 装机脚本、其他机器 |
+| 仓库源码 | `packages/<name>/` | 本仓开发 |
+
+**⚠️ 血泪教训（2026-09-11，一次查出 4 处）**：多个修复提交只改了代码、**没升 `version`**，
+而 **npm 不允许覆盖已发布版本** → 仓库修好了，npm 上仍是坏代码。实测三例：
+
+- `dsh-lan-gateway`：npm 版 `token-gate.js` 与修复前版本 md5 完全一致 → dsh 0.1.2+ 上 LAN 访问被旧门卫彻底挡死
+- `dsh-web-search-metaso`：npm 版仍 `import installSettingsSection`（0.1.2 已移除该 API）→ 装上即崩溃
+- `dsh-vision-tool`：npm 版缺 `apiKeyHeader` → opencodex 鉴权无法配置
+
+**纪律：任何修改插件行为的提交，都必须同时升 `packages/<name>/package.json` 的 `version`；
+只改文档/脚本注释可不升。** 版本号是唯一能让外部用户拿到修复的手段。
+
+**发布后必须核对产物内容**（不要只看 `npm publish` 成功）：
+
+```bash
+npm publish                                   # 返回 PUT 202 = 异步受理，不是最终成功
+# 轮询到 tarball 可下载（元数据约 3 分钟、tarball 约 4-5 分钟才就绪，期间 404 属正常）
+curl -sI https://registry.npmjs.org/<pkg>/-/<pkg>-<ver>.tgz | head -1
+# 解包与仓库逐文件对 md5 —— 这一步才是"发布成功"的判据
+tar xzf <pkg>-<ver>.tgz && md5sum package/index.js packages/<name>/index.js
+```
+
+升版本后记得 **重新跑 `bash scripts/package.sh`**：tarball 里的 `package.json` 版本号
+否则会停在上一次打包时的旧值，与 npm / 仓库不一致。
+
 ## 1. 生成分发产物
 
 ```bash
