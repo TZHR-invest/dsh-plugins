@@ -142,7 +142,12 @@ export function apply(ctx) {
       const coldCandidates = [];
       if (persistence !== void 0) {
         const metas = await persistence.list(void 0);
-        for (const meta of metas) {
+        for (const raw of metas) {
+          // 0.1.2-rc.1: persistence.list() 直接返回扁平 header 数组（meta.cwd/meta.id 可读）；
+          // 0.1.5+: 改为包装对象 { header, revision, sizeBytes }，且 locate(meta) 仍吃扁平 meta。
+          // 不解包 → meta.cwd 恒为 undefined → 命中下方 continue → 全部冷会话被静默跳过（cold=0）。
+          const meta = raw?.header ?? raw;
+          if (meta === void 0) continue;
           if (attachedById.has(meta.id)) continue;
           if (meta.cwd === void 0) continue;
           if (isSubagent(meta)) continue;
@@ -152,8 +157,23 @@ export function apply(ctx) {
             const location = persistence.locate(meta);
             if (location?.path !== void 0) {
               const fs = await import("node:fs/promises");
-              const stat = await fs.stat(location.path);
-              mtime = stat.mtimeMs;
+              const path = await import("node:path");
+              // 0.1.5+: locate() 语义变为「当前格式的目标路径」(session.v3.jsonl.zstd)，
+              // 而未迁移的旧会话磁盘上仍是 v0 的 session.jsonl.zstd → 直接 stat 必然 ENOENT，
+              // 于是 updatedAt 退化为其 createdAt，会把「创建早但仍活跃」的会话误判为闲置。
+              // 故以 locate 路径所在目录为准，扫描其中实际存在的 generation 文件取最新 mtime。
+              const dir = path.dirname(location.path);
+              let entries = [];
+              try { entries = await fs.readdir(dir); } catch { /* 目录不可读则走下方回退 */ }
+              let best = 0;
+              for (const entry of entries) {
+                if (!entry.endsWith(".jsonl") && !entry.endsWith(".jsonl.zstd")) continue;
+                try {
+                  const stat = await fs.stat(path.join(dir, entry));
+                  if (stat.mtimeMs > best) best = stat.mtimeMs;
+                } catch { /* 单个 generation 失败忽略 */ }
+              }
+              mtime = best > 0 ? best : (await fs.stat(location.path)).mtimeMs;
             }
           } catch (error) {
             warn(`cold stat failed for ${meta.id}: ${String(error)}`);

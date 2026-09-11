@@ -1,6 +1,6 @@
 {
   "name": "dsh-auto-archive",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "自动归档闲置会话：工作区会话闲置 N 天自动加入归档集合（列表隐藏，数据保留，支持 dry-run 预览）",
   "type": "module",
   "main": "index.js",
