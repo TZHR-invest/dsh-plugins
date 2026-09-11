@@ -120,29 +120,32 @@ window.__ModuleLoader__.load({
 			      trailing 吃满余量并右对齐，全行只留模型按钮一个可收缩项。 */
 			"  body.dsh-mobile-ui [class*=uV2eYG_row]{flex-wrap:wrap !important;gap:8px !important;row-gap:6px !important}",
 			"  body.dsh-mobile-ui [class*=uV2eYG_row] > *{flex:0 1 auto !important;min-width:0 !important}",
-			/* ── 移动端操作行改「两行」布局（2026-09-11 按用户选择实施）────────────
-			   第一行：工具组（+ / 附件 / 访问模式）
-			   第二行：模型选择器（吃满余量）+ 上下文环 + 发送
-			   为什么必须两行：完整模型名（如 commandcode/deepseek/deepseek-v4.1-flash
-			   = 40 字符 ≈ 225px）在单行里物理上放不下——390px 视口整行内容仅 332px，
-			   工具组最少占 120px，单行最多只能给出约 61px（10/40 字符，实测）。
-			   两行后模型独占一行，实测同一视口可显示 38/40 字符。
-			   代价：行高 52 → 90px（多占约 38px 垂直空间）。 */
-			"  body.dsh-mobile-ui [class*=uV2eYG_tools]{flex:0 0 100% !important;padding:0 !important;gap:8px !important}",
+			/* ── 移动端操作行排布（2026-09-11 v3，按用户反馈"上面空了一块"重排）────
+			   两行，但**不是**「工具组独占第一行 + 其余全在第二行」：
+			     第一行：工具组(+ / 附件 / 访问模式) ······ 上下文环  发送
+			     第二行：模型选择器（独占整行）
+			   为什么这样：旧排布（工具组独占第一行、模型+上下文+发送在第二行）
+			   实测在 412px 下第一行右侧留出 **183px 空白**——用户一眼看出"上面空了一块"。
+			   把上下文环与发送键提到第一行右侧正好填满（空块降到 8px），
+			   同时模型独占整行后名字可完整显示（412px 实测 40/40 字符，旧排布 37/40）。
+			   实现：display:contents 打散 trailing，让它三个子元素成为 row 的直接
+			   flex 项，再用 order 指定视觉顺序、margin-left:auto 把后两者推到最右。
+			   （纯 CSS，不移动 DOM —— 搬 React 节点会在重渲染时 removeChild 抛错。） */
+			"  body.dsh-mobile-ui [class*=uV2eYG_trailing]{display:contents !important}",
+			"  body.dsh-mobile-ui [class*=uV2eYG_tools]{order:1 !important;flex:0 0 auto !important;padding:0 !important;gap:8px !important}",
 			"  body.dsh-mobile-ui [class*=uV2eYG_modes]{padding:0 !important;gap:8px !important}",
-			/* trailing 独占第二行；模型根吃满余量（flex:1 1 auto），
-			   上下文环与发送键自然被推到最右，与第一行左缘对齐、右侧贴边 */
-			"  body.dsh-mobile-ui [class*=uV2eYG_trailing]{flex:1 1 100% !important;min-width:0 !important;justify-content:flex-start !important;gap:8px !important}",
-			"  body.dsh-mobile-ui [class*=uV2eYG_trailing] [class*=JObwrW_root]{flex:0 0 auto !important}",
+			"  body.dsh-mobile-ui [class*=JObwrW_root]{order:2 !important;flex:0 0 auto !important;margin-left:auto !important}",
+			"  body.dsh-mobile-ui [class*=uV2eYG_primary]{order:3 !important;flex:0 0 auto !important}",
 			"  body.dsh-mobile-ui [class*=uV2eYG_row] button[class*=trigger]{display:flex !important;align-items:center !important;line-height:1.2 !important}",
-			/* 模型选择器：独占第二行后**不再设宽度上限**——上限会留出难看的空隙，
-			   而独占一行已保证它不会挤到别的控件。
-			   ⚠️ 仍保留 min-width:0：trailing 是 flex:1 1 100% + min-width:0，
-			   若给内容设 min-width 地板，盒宽不足时子元素会向左溢出压住第一行的工具组
-			   （实测 min-width:96px 时 365px 视口压住权限按钮 9px）。 */
-			"  body.dsh-mobile-ui [class*=_7KE1Ra_root]{flex:1 1 auto !important;min-width:0 !important;max-width:none !important;overflow:hidden !important}",
-			/* 模型按钮内边距 6→4px、文字左对齐（独占一行后居中会显得空） */
-			"  body.dsh-mobile-ui button[aria-label*=选择模型]{display:flex !important;align-items:center !important;justify-content:flex-start !important;flex:1 1 auto !important;min-width:0 !important;max-width:100% !important;width:100% !important;font-size:11px !important;padding:0 4px !important;overflow:hidden !important;text-overflow:ellipsis !important;white-space:nowrap !important}",
+			/* 模型选择器：独占整行（flex:1 1 100%），故**不设宽度上限**；
+			   min-width:0 保留（给内容设 min-width 地板会导致窄行时向左溢出压住工具组） */
+			"  body.dsh-mobile-ui [class*=_7KE1Ra_root]{order:4 !important;flex:1 1 100% !important;min-width:0 !important;max-width:none !important;overflow:hidden !important}",
+			/* 模型按钮：内边距 6→4px。
+			   ⚠️ text-align:left 必须显式写：浏览器的 UA 默认给 <button> 是 text-align:center，
+			   模型名独占整行后，居中会让文字从 69px 处开始（实测 412px），
+			   左对齐才与上一行的 + 按钮对齐（旧排布里 label 宽度恰好等于文字宽度，
+			   没有富余空间居中，所以这个坑一直没暴露）。 */
+			"  body.dsh-mobile-ui button[aria-label*=选择模型]{display:flex !important;align-items:center !important;justify-content:flex-start !important;text-align:left !important;flex:1 1 auto !important;min-width:0 !important;max-width:100% !important;width:100% !important;font-size:11px !important;padding:0 4px !important;overflow:hidden !important;text-overflow:ellipsis !important;white-space:nowrap !important}",
 			/* 模型名：display:block + overflow:hidden + text-overflow:ellipsis 才有**真省略号**
 			   （flex 容器忽略 text-overflow，会硬切出半个字符——用户截图里的"半截字母"）。
 			   flex:1 1 auto 让名字吃满、把 chevron 顶到最右（像正常下拉框）。
@@ -221,12 +224,12 @@ window.__ModuleLoader__.load({
 			   （2026-09-11 用户反馈"选项卡和输入按钮高度不一致"实测定案）。 */
 			"  body.dsh-mobile-ui [class*=scrollBody] [class*=flowItem] [class*=actions] button,body.dsh-mobile-ui [class*=scrollBody] [class*=flowItem] [class*=tools] button{min-width:36px;min-height:36px;display:inline-flex;align-items:center;justify-content:center}",
 			/* ── 按「行实际宽度」决定权限按钮是否显示文字（容器查询，不用视口猜）──
-			   操作行上游自带 container-type:inline-size，故这里以行宽为判据：
-			   两行布局后第一行由工具组独占，「盾牌图标 + 完全权限」合计约 158px，
-			   最窄机型（320px 视口，行内容 262px）也放得下，故阈值降到 170px：
-			   所有正常手机都能看到权限文字。比按视口宽度判断更稳
-			   （卡片 max-width 720 会先封顶，容器查询看的是行实际宽度）。 */
-			"  @container (min-width:170px){",
+			   操作行上游自带 container-type:inline-size，故这里以行宽为判据。
+			   v3 排布下第一行是「工具组 ····· 上下文 发送」，要保住**两行**，
+			   权限文字的宽度预算必须让出来：实测 320px 视口（行宽 278px）带文字
+			   会挤成三行，故阈值取 290px —— 行宽不足时权限按钮退回纯图标，
+			   上下文+发送就能与工具组同行（该视口模型名反而能完整显示）。 */
+			"  @container (min-width:290px){",
 			"    body.dsh-mobile-ui button[aria-label*=访问模式] [class*=triggerLabel]{display:block !important}",
 			"  }",
 			"}",

@@ -366,6 +366,9 @@ COMPOSER_MEASURE_JS = r"""
     }
   }
 
+  // ── 每行右侧空块宽度（2026-09-11 用户反馈"上面空了一块"的守卫）──
+  // 旧排布把工具组独占第一行，右侧留白 183px（412px 实测）→ 一眼看出"空了一块"。
+  // 判据：每行最右控件的右缘到卡片右缘的空白不得超过 60px（约一个按钮宽）。
   // ── 视觉一致性（2026-09-11 用户反馈"高度不一致、怪怪的"的守卫）──
   // 同一操作行内所有按钮必须等高、同字号，且行内垂直中心离散 ≤1.5px
   const heights = [...new Set(btns.map(b => Math.round(b.h)))];
@@ -380,6 +383,14 @@ COMPOSER_MEASURE_JS = r"""
     else clusters[clusters.length - 1].push(ty);
   }
   const lineSpreads = clusters.map(c => +(Math.max(...c) - Math.min(...c)).toFixed(1));
+  // 每行右侧空块（行最右控件右缘 → 卡片右缘）
+  // ⚠️ clusters 的每个元素是「该行 top 的数组」，取 [0] 才是行 top
+  //（曾误把整个数组当数值比较，导致空块恒算出 0、守卫静默失效）
+  const lineRightGaps = cardRight === null ? [] : clusters.map(cluster => {
+    const lineTop = cluster[0];
+    const rowBtns = btns.filter(b => Math.abs(b.y - lineTop) <= 6);
+    return rowBtns.length ? +(cardRight - Math.max(...rowBtns.map(b => b.right))).toFixed(1) : 0;
+  });
 
   // 垂直对齐：label / chevron / 图标中心相对按钮中心的偏差 ≤1.5px
   const cy = (el) => { const b = el.getBoundingClientRect(); return b.y + b.height / 2; };
@@ -401,7 +412,7 @@ COMPOSER_MEASURE_JS = r"""
     overlaps, spill,
     accessIconShown, accessLabelShown, accessLabelW, effortShown,
     modelLabelClipped, ellipsisOk, misaligned, modelLabelW,
-    heights, fonts, lineSpreads,
+    heights, fonts, lineSpreads, lineRightGaps,
     // 控件是否都可点（中心点命中自己）
     unclickable: btns.filter(b => {
       const cx = b.x + b.w / 2, cy2 = b.y + b.h / 2;
@@ -553,9 +564,12 @@ def main() -> int:
         or r.get("count", 0) < 2
         # 权限图标必须常显（曾被 span 通配规则连图标一起隐藏 → 整个按钮空白）
         or not r.get("accessIconShown")
-        # 权限文字必须常显且有真实宽度（两行布局后第一行独占，320px 也放得下；
-        # 曾出现 span 通配规则把图标一起隐藏 → 按钮纯空白的故障）
-        or not r.get("accessLabelShown") or (r.get("accessLabelW") or 0) < 20
+        # 权限按钮：**图标**必须常显（曾因 span 通配规则连图标一起隐藏 → 按钮纯空白）；
+        # **文字**按行宽自适应：v3 排布下第一行是「工具组 ···· 上下文 发送」，
+        # 行宽不足（<290px，如 320px 视口）时主动退回纯图标以保住两行，
+        # 故此处只要求"若显示则必须有真实宽度"，不强制常显。
+        or not r.get("accessIconShown")
+        or (r.get("accessLabelShown") and (r.get("accessLabelW") or 0) < 20)
         # 推理等级后缀必须隐藏（否则被压成半截字符）
         or r.get("effortShown")
         # 被裁的模型名必须走真省略号，不能硬切半个字符
@@ -566,6 +580,10 @@ def main() -> int:
         or 0 < (r.get("modelLabelW") or 0) < 120
         # 图标/文字/箭头必须垂直居中对齐
         or r.get("misaligned")
+        # 行数必须恰为 2（v3 排布：工具组+上下文+发送 / 模型独占第二行）
+        or len(r.get("lineSpreads") or []) != 2
+        # 每行右侧不得留出大空块（旧排布第一行空 183px → 用户看出"空了一块"）
+        or any(g > 60 for g in (r.get("lineRightGaps") or []))
         # 控件必须等高、同字号（曾 36/40/44 三种高度混排 → 视觉"怪"）
         or len(r.get("heights") or [1]) != 1
         or len(r.get("fonts") or [1]) != 1
@@ -632,9 +650,7 @@ def main() -> int:
                     why.append(f"点不到={r['unclickable']}")
                 if not r.get("accessIconShown"):
                     why.append("权限图标被隐藏(按钮会变空白)")
-                if not r.get("accessLabelShown"):
-                    why.append("权限文字未显示")
-                elif (r.get("accessLabelW") or 0) < 20:
+                if r.get("accessLabelShown") and (r.get("accessLabelW") or 0) < 20:
                     why.append(f"权限文字宽度异常={r.get('accessLabelW')}")
                 if r.get("effortShown"):
                     why.append("推理等级后缀未隐藏(会被压成半截字符)")
@@ -649,6 +665,10 @@ def main() -> int:
                     why.append(f"控件高度不一致={r.get('heights')}")
                 if len(r.get("fonts") or [1]) != 1:
                     why.append(f"字号不一致={r.get('fonts')}")
+                if len(r.get("lineSpreads") or []) != 2:
+                    why.append(f"行数不为 2（实际 {len(r.get('lineSpreads') or [])}）")
+                if any(g > 60 for g in (r.get("lineRightGaps") or [])):
+                    why.append(f"行右侧留有大空块={r.get('lineRightGaps')}px")
                 if any(s > 1.5 for s in (r.get("lineSpreads") or [0])):
                     why.append(f"行内中心离散过大={r.get('lineSpreads')}")
                 if r.get("count", 0) < 2:
