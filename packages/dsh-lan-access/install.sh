@@ -74,11 +74,49 @@ else
 fi
 
 # ── 1/6 webserver 绑定 0.0.0.0（第 1 层）───────────────────────────────────
+#
+# ⚠️ 必须同时重述 compression* 三个键（2026-09-11 实测定案）：
+#    loader patch 会**整体替换**目标行的 config（dsh-web-app/cordis.patch.yml 原文：
+#    "A patch replaces the targeted row's whole config, so each row below restates
+#    every key it owns"）。dsh-web-app bundle 里该行本来自带
+#    `compression: gzip`（level 1、阈值 1024），我们只写 host/port 就把它**静默关掉**了
+#    → 所有响应不压缩。后果在慢链路上被放大：客户端插件聚合包 11.2MB 原样传输，
+#    经 tailscale DERP 中继（~130KB/s）需 73 秒，表现为长期停在
+#    "Loading plugins…"（home-wsl 实测）。补上后同一包 3.95MB / 30 秒（压缩比 2.8x）。
 PATCH1="$DSH/cordis.patch.yml"
-echo "== 1/6 webserver 绑定 0.0.0.0 =="
+echo "== 1/6 webserver 绑定 0.0.0.0（含压缩配置）=="
+
+# 幂等修复：块已在但缺 compression（旧版安装器留下的），就地补齐
+repair_compression() {
+  local f="$1"
+  [ -f "$f" ] || return 0
+  grep -q 'id: webserver' "$f" 2>/dev/null || return 0
+  grep -q 'compression:' "$f" 2>/dev/null && return 0
+  awk '
+    BEGIN { inblk = 0 }
+    /^[[:space:]]*-[[:space:]]*id:[[:space:]]*webserver/ { inblk = 1 }
+    inblk && /^[[:space:]]*port:/ {
+      print
+      print "    compression: gzip"
+      print "    compressionLevel: 6"
+      print "    compressionThresholdBytes: 1024"
+      inblk = 0
+      next
+    }
+    { print }
+  ' "$f" > "$f.tmp-compress" && mv "$f.tmp-compress" "$f"
+  echo "  [已补] $f 缺 compression*，已就地加入（否则响应不压缩）"
+}
+
 if [ -f "$PATCH1" ] && grep -q 'id: webserver' "$PATCH1" 2>/dev/null; then
   if grep -q "0.0.0.0" "$PATCH1"; then
     echo "  [已有] $PATCH1"
+    if [ "$MODE" = "--check" ]; then
+      grep -q 'compression:' "$PATCH1" \
+        || { echo "  [缺失] $PATCH1 缺 compression*（响应不压缩，慢链路会明显变慢）"; FAIL=1; }
+    else
+      repair_compression "$PATCH1"
+    fi
   else
     echo "  [跳过] $PATCH1 已有 webserver 配置但未绑定 0.0.0.0，为避免覆盖你的配置，请人工修改"
     FAIL=1
@@ -88,12 +126,17 @@ elif [ "$MODE" = "--check" ]; then
 else
   mkdir -p "$DSH"
   cat >> "$PATCH1" <<'EOF'
+# ⚠️ loader patch 会整体替换该行 config，故 bundle 自带的 compression* 必须一并重述，
+#    否则响应不压缩（慢链路/移动端会明显变慢；详见 dsh-lan-access/install.sh 注释）。
 - id: webserver
   config:
     host: '0.0.0.0'
     port: 3080
+    compression: gzip
+    compressionLevel: 6
+    compressionThresholdBytes: 1024
 EOF
-  echo "  [已加] $PATCH1"
+  echo "  [已加] $PATCH1（含 compression: gzip）"
 fi
 
 # ── 2/6 插件安装与接线（官方 bundle 流优先，复制流回退）──────────────────

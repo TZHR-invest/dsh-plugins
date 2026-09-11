@@ -19,6 +19,43 @@ set -u
 MODE="${1:-apply}"
 DSH="${DSH_HOME:-$HOME/.dsh}"
 
+# ── 0/7 用户层 webserver 绑定 + 压缩配置自检（2026-09-11 新增）──────────────
+#
+# 为什么需要：$DSH/cordis.patch.yml 里的 `- id: webserver` 行会**整体替换**
+# dsh-web-app bundle 的该行 config，而 bundle 原本自带 `compression: gzip`。
+# 旧版 install.sh 只写 host/port，于是压缩被静默关闭 —— 所有响应不压缩，
+# 客户端插件聚合包 11.2MB 原样传输，慢链路（tailscale DERP）上要 73 秒，
+# 表现为浏览器长期停在 "Loading plugins…"。这里负责检测并补齐。
+#
+# 注：与脚本其余检查一致，--check 只用文本 [缺失]/[已有] 报告、**不改文件也不改退出码**
+#     （本脚本的约定是 --check 恒 exit 0，靠读输出判断）。
+echo "== 0/7 webserver 绑定与压缩自检 =="
+PATCH_TOP="$DSH/cordis.patch.yml"
+if [ ! -f "$PATCH_TOP" ] || ! grep -q 'id: webserver' "$PATCH_TOP" 2>/dev/null; then
+  echo "  [缺失] $PATCH_TOP 无 webserver 绑定（局域网可能无法访问；重装 install.sh 可修）"
+elif ! grep -q 'compression:' "$PATCH_TOP" 2>/dev/null; then
+  if [ "$MODE" = "--check" ]; then
+    echo "  [缺失] $PATCH_TOP 缺 compression* → 响应不压缩（慢链路会明显变慢）"
+  else
+    awk '
+      BEGIN { inblk = 0 }
+      /^[[:space:]]*-[[:space:]]*id:[[:space:]]*webserver/ { inblk = 1 }
+      inblk && /^[[:space:]]*port:/ {
+        print
+        print "    compression: gzip"
+        print "    compressionLevel: 6"
+        print "    compressionThresholdBytes: 1024"
+        inblk = 0
+        next
+      }
+      { print }
+    ' "$PATCH_TOP" > "$PATCH_TOP.tmp-compress" && mv "$PATCH_TOP.tmp-compress" "$PATCH_TOP"
+    echo "  [已补] compression: gzip（自定义 profile 的用户层 patch 为热加载，数秒内自动生效、无需重启）"
+  fi
+else
+  echo "  [已有] webserver 绑定 + compression"
+fi
+
 # ── 1/6 插件安装与接线（官方 bundle 流优先，复制流回退）──────────────────
 if [ -d "$DSH/plugins/dsh-lan-gateway" ]; then
   SRC="$DSH/plugins/dsh-lan-gateway"; DST="$DSH/profiles/node_modules/dsh-lan-gateway"
