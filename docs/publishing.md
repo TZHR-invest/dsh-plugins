@@ -28,10 +28,36 @@
 | 包 | 版本 | 备注 |
 |---|---|---|
 | `dsh-lan-gateway` | 0.2.2 | |
-| `dsh-mobile-ui` | 0.1.2 | |
+| `dsh-mobile-ui` | **0.2.2** | 移动端操作行重做（两行排布 / 等高 44px / 权限按钮空白与半截字符等 5 类修复，0.1.2 → 0.2.2） |
 | `dsh-vision-tool` | 0.1.2 | |
 | `dsh-web-search-metaso` | 0.1.2 | 修复「切换段漏写 `fetchProvider` → `web_fetch` 全废」 |
 | `dsh-auto-archive` | 0.1.1 | **首次发布**；修复 dsh 0.1.5 `persistence.list()/locate()` 变更致归档静默失效 |
+
+## 0.1 客户端插件分发：为什么"本机改了"≠"别处也好了"（2026-09-11 定案）
+
+`dsh-mobile-ui` 这类**客户端 bundle** 由**每台机器自己的 `dsh web`** 提供，浏览器加载的是
+"它所连那台机器"的 `client.js`。因此修好 ai-agent 只对 ai-agent 生效，其余机器照旧跑旧代码
+（实测：ai-agent 已是新版，devbox/trade-pc/office_64g 停在 `ff3547c9`、home-wsl 停在更旧的
+`9e855e87`，即**修复前**的版本）。
+
+**升级方式（不需要重启服务）**：客户端 bundle 路由每次读磁盘，**刷新浏览器即生效**。
+只需把两个文件放到目标机的两处位置：
+
+```bash
+# 每台机器两处：源码目录 + 运行副本（缺一不可，运行副本才是实际被加载的）
+cp client.js package.json ~/.dsh/plugins/dsh-mobile-ui/
+cp client.js package.json ~/.dsh/profiles/node_modules/dsh-mobile-ui/
+```
+
+**⚠️ 只拷 `client.js` 忘记 `package.json` 会让版本核对撒谎**——`package.json` 里的 `version`
+是唯一能一眼判断"这台是什么版本"的凭据（本轮 ai-agent 就曾因它停在 0.1.1 而误导过排查）。
+
+**⚠️ 同步后必须做浏览器端验证，不能只看文件 md5。** 本轮实测一个反例：home-wsl 文件
+md5 完全正确，浏览器却永远停在 "Loading plugins…"。根因与插件无关——
+该机只有 tailscale 可达，且链路走 **DERP 中继（sfo）而非直连**（`direct connection not
+established`，延迟 400-800ms、带宽 **153 KB/s**），而 dsh 的客户端插件聚合包有
+**11.2 MB**，传输需 **73 秒**，浏览器等不及。定位手法：在目标机**本机** curl 同一 URL
+（实测 0.066s 返回 200/11.2MB）即可区分"服务端问题"还是"链路问题"。
 
 **教训（第二轮，同型复发）**：metaso 这次又是「仓库已修、npm 仍是坏版本」——
 `npm i dsh-web-search-metaso` 装到 0.1.1 会复现 `web_fetch` 全废故障。

@@ -3,3 +3,7 @@ dist/
 *.tar.gz
 *.log
 .DS_Store
+
+# Python 缓存（探针运行时生成，不该入库/进包）
+__pycache__/
+*.pyc
