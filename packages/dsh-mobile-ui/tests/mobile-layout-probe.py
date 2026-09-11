@@ -537,15 +537,17 @@ def main() -> int:
         or r.get("count", 0) < 2
         # 权限图标必须常显（曾被 span 通配规则连图标一起隐藏 → 整个按钮空白）
         or not r.get("accessIconShown")
-        # 权限文字若显示，就必须真的有宽度（不能是 0 宽空壳）
-        or (r.get("accessLabelShown") and (r.get("accessLabelW") or 0) < 20)
+        # 权限文字必须常显且有真实宽度（两行布局后第一行独占，320px 也放得下；
+        # 曾出现 span 通配规则把图标一起隐藏 → 按钮纯空白的故障）
+        or not r.get("accessLabelShown") or (r.get("accessLabelW") or 0) < 20
         # 推理等级后缀必须隐藏（否则被压成半截字符）
         or r.get("effortShown")
         # 被裁的模型名必须走真省略号，不能硬切半个字符
         or (r.get("modelLabelClipped") and not r.get("ellipsisOk"))
-        # 模型名一旦显示就不许被压成窄条（实测修复前 390px 仅 40px → 只能看 7/40 字符）。
-        # 下限取 50px 只拦"灾难性变窄"，不锁死具体宽度（布局微调不该误报）。
-        or 0 < (r.get("modelLabelW") or 0) < 50
+        # 模型名必须够宽（两行布局后独占一行：320px 约 148px、390px 约 218px，
+        # 而单行时代仅 40px → 只能看 7/40 字符）。下限取 120px 防退化成窄条，
+        # 又不锁死具体像素（布局微调不该误报）。
+        or 0 < (r.get("modelLabelW") or 0) < 120
         # 图标/文字/箭头必须垂直居中对齐
         or r.get("misaligned")
     ]
@@ -609,15 +611,17 @@ def main() -> int:
                     why.append(f"点不到={r['unclickable']}")
                 if not r.get("accessIconShown"):
                     why.append("权限图标被隐藏(按钮会变空白)")
-                if r.get("accessLabelShown") and (r.get("accessLabelW") or 0) < 20:
+                if not r.get("accessLabelShown"):
+                    why.append("权限文字未显示")
+                elif (r.get("accessLabelW") or 0) < 20:
                     why.append(f"权限文字宽度异常={r.get('accessLabelW')}")
                 if r.get("effortShown"):
                     why.append("推理等级后缀未隐藏(会被压成半截字符)")
                 if r.get("modelLabelClipped") and not r.get("ellipsisOk"):
                     why.append("模型名被硬切而非省略号")
                 mw = r.get("modelLabelW") or 0
-                if 0 < mw < 50:
-                    why.append(f"模型名被压得过窄({mw}px < 50px)")
+                if 0 < mw < 120:
+                    why.append(f"模型名被压得过窄({mw}px < 120px)")
                 if r.get("misaligned"):
                     why.append(f"垂直未对齐={r['misaligned']}")
                 if r.get("count", 0) < 2:

@@ -118,35 +118,40 @@ window.__ModuleLoader__.load({
 			      trailing 吃满余量并右对齐，全行只留模型按钮一个可收缩项。 */
 			"  body.dsh-mobile-ui [class*=uV2eYG_row]{flex-wrap:wrap !important;gap:4px !important;row-gap:2px !important}",
 			"  body.dsh-mobile-ui [class*=uV2eYG_row] > *{flex:0 1 auto !important;min-width:0 !important}",
-			/* 工具组间距 4→2px：操作行内每一像素都该优先给模型名（仅视觉留白，无信息损失） */
-			"  body.dsh-mobile-ui [class*=uV2eYG_tools]{flex:0 0 auto !important;padding:0 !important;gap:2px !important}",
+			/* ── 移动端操作行改「两行」布局（2026-09-11 按用户选择实施）────────────
+			   第一行：工具组（+ / 附件 / 访问模式）
+			   第二行：模型选择器（吃满余量）+ 上下文环 + 发送
+			   为什么必须两行：完整模型名（如 commandcode/deepseek/deepseek-v4.1-flash
+			   = 40 字符 ≈ 225px）在单行里物理上放不下——390px 视口整行内容仅 332px，
+			   工具组最少占 120px，单行最多只能给出约 61px（10/40 字符，实测）。
+			   两行后模型独占一行，实测同一视口可显示 38/40 字符。
+			   代价：行高 52 → 90px（多占约 38px 垂直空间）。 */
+			"  body.dsh-mobile-ui [class*=uV2eYG_tools]{flex:0 0 100% !important;padding:0 !important;gap:2px !important}",
 			"  body.dsh-mobile-ui [class*=uV2eYG_modes]{padding:0 !important;gap:2px !important}",
-			"  body.dsh-mobile-ui [class*=uV2eYG_trailing]{flex:1 1 0 !important;min-width:0 !important;justify-content:flex-end !important;gap:2px !important}",
+			/* trailing 独占第二行；模型根吃满余量（flex:1 1 auto），
+			   上下文环与发送键自然被推到最右，与第一行左缘对齐、右侧贴边 */
+			"  body.dsh-mobile-ui [class*=uV2eYG_trailing]{flex:1 1 100% !important;min-width:0 !important;justify-content:flex-start !important;gap:2px !important}",
 			"  body.dsh-mobile-ui [class*=uV2eYG_trailing] [class*=JObwrW_root]{flex:0 0 auto !important}",
 			"  body.dsh-mobile-ui [class*=uV2eYG_row] button[class*=trigger]{display:flex !important;align-items:center !important;line-height:1.2 !important}",
-			/* 模型选择器：可收缩；总宽上限 240px。
-			   ⚠️ 上限给大是**安全**的：根是 flex:0 1 auto，只会占用行内**富余**空间，
-			   行窄时自动收缩，不会去挤别的控件。实测 768px 视口下 240px 能完整显示
-			   `commandcode/deepseek/deepseek-v4.1-flash`（旧上限 136px 只能显示 18/40 字符）。
-			   ⚠️ min-width 只给 44px（一个图标的宽度）作地板，**不能给大**：
-			   trailing 是 flex:1 1 0 + min-width:0 + justify-content:flex-end，
-			   一旦 trailing 盒宽 < 其内容最小宽，右对齐会把子元素**向左溢出**到 tools 组上
-			   （实测 min-width:96px 时：365px 模型左缘 139 < 权限按钮右缘 148 → 压住 9px；
-			   410px 压 2px）。地板放低后由模型自己吸收全部收缩，任何宽度都不再溢出
-			   （宽度不足时显示省略号；≤360px 另走图标模式）。 */
-			"  body.dsh-mobile-ui [class*=_7KE1Ra_root]{flex:0 1 auto !important;min-width:44px !important;max-width:240px !important;overflow:hidden !important}",
-			/* 模型按钮内边距 6→4px（左右各省 2px 给文字） */
-			"  body.dsh-mobile-ui button[aria-label*=选择模型]{display:flex !important;align-items:center !important;justify-content:center !important;flex:1 1 auto !important;min-width:0 !important;max-width:100% !important;width:100% !important;font-size:11px !important;padding:0 4px !important;overflow:hidden !important;text-overflow:ellipsis !important;white-space:nowrap !important}",
+			/* 模型选择器：独占第二行后**不再设宽度上限**——上限会留出难看的空隙，
+			   而独占一行已保证它不会挤到别的控件。
+			   ⚠️ 仍保留 min-width:0：trailing 是 flex:1 1 100% + min-width:0，
+			   若给内容设 min-width 地板，盒宽不足时子元素会向左溢出压住第一行的工具组
+			   （实测 min-width:96px 时 365px 视口压住权限按钮 9px）。 */
+			"  body.dsh-mobile-ui [class*=_7KE1Ra_root]{flex:1 1 auto !important;min-width:0 !important;max-width:none !important;overflow:hidden !important}",
+			/* 模型按钮内边距 6→4px、文字左对齐（独占一行后居中会显得空） */
+			"  body.dsh-mobile-ui button[aria-label*=选择模型]{display:flex !important;align-items:center !important;justify-content:flex-start !important;flex:1 1 auto !important;min-width:0 !important;max-width:100% !important;width:100% !important;font-size:11px !important;padding:0 4px !important;overflow:hidden !important;text-overflow:ellipsis !important;white-space:nowrap !important}",
 			/* 模型名：display:block + overflow:hidden + text-overflow:ellipsis 才有**真省略号**
 			   （flex 容器忽略 text-overflow，会硬切出半个字符——用户截图里的"半截字母"）。
-			   垂直居中由父按钮的 align-items:center 负责（label 自身高度自然，不再被
-			   上面那条 min-height:40px 撑高）。 */
-			"  body.dsh-mobile-ui button[aria-label*=选择模型] [class*=_7KE1Ra_triggerLabel]{display:block !important;line-height:1.2 !important;min-width:0 !important;overflow:hidden !important;text-overflow:ellipsis !important;white-space:nowrap !important}",
+			   flex:1 1 auto 让名字吃满、把 chevron 顶到最右（像正常下拉框）。
+			   垂直居中由父按钮的 align-items:center 负责。 */
+			"  body.dsh-mobile-ui button[aria-label*=选择模型] [class*=_7KE1Ra_triggerLabel]{display:block !important;flex:1 1 auto !important;line-height:1.2 !important;min-width:0 !important;overflow:hidden !important;text-overflow:ellipsis !important;white-space:nowrap !important}",
 			/* 推理等级（Max）移动端不显示：上游给它 flex-shrink:1000（先消失），
 			   上轮误改成 flex:0 1 auto 后它与模型名一起被压缩，只剩 8px 宽的
 			   半截字符（用户截图实证）。这里直接隐藏，信息仍可在模型菜单里看到。 */
 			"  body.dsh-mobile-ui button[aria-label*=选择模型] [class*=_7KE1Ra_triggerEffort]{display:none !important}",
-			/* 图标在移动端默认不显示（文字信息量更大；窄屏才切换成图标模式，见 ≤360px 块） */
+			/* 模型图标移动端不显示：两行布局后模型名有整行宽度，文字信息量远大于图标
+			   （上游在 @container(width<=360px) 时才折叠成图标，我们不再需要那条降级） */
 			"  body.dsh-mobile-ui button[aria-label*=选择模型] [class*=_7KE1Ra_triggerIcon]{display:none !important}",
 			/* 权限（访问模式）按钮：恢复图标 + 文字。
 			   ⚠️ 旧规则 button[aria-label*=访问模式] span{display:none} 用 span 通配，
@@ -189,23 +194,21 @@ window.__ModuleLoader__.load({
 			"  body.dsh-mobile-ui [class*=scrollBody] [class*=actions] button,body.dsh-mobile-ui [class*=scrollBody] [class*=tools] button{min-width:36px;min-height:36px;display:inline-flex;align-items:center;justify-content:center}",
 			/* ── 按「行实际宽度」决定权限按钮是否显示文字（容器查询，不用视口猜）──
 			   操作行上游自带 container-type:inline-size，故这里以行宽为判据：
-			   ≥324px 放得下「盾牌图标 + 完全权限 + 模型名 + 上下文 + 发送」时显示文字，
-			   否则保持图标模式。比按视口宽度判断更稳（卡片 max-width 720 会先封顶）。 */
-			"  @container (min-width:324px){",
+			   两行布局后第一行由工具组独占，「盾牌图标 + 完全权限」合计约 158px，
+			   最窄机型（320px 视口，行内容 262px）也放得下，故阈值降到 170px：
+			   所有正常手机都能看到权限文字。比按视口宽度判断更稳
+			   （卡片 max-width 720 会先封顶，容器查询看的是行实际宽度）。 */
+			"  @container (min-width:170px){",
 			"    body.dsh-mobile-ui button[aria-label*=访问模式] [class*=triggerLabel]{display:block !important}",
 			"  }",
 			"}",
 
-			/* ≤360px 小屏：操作行进一步压缩；模型按钮收成图标（对齐上游 @container 折叠意图，
-			   一行 5 个控件仍放得下，不再靠"挤到重叠"来维持单行）。
-			   权限按钮此时由上面的容器查询自动退回图标模式（行宽 < 324px），无需重复声明。 */
+			/* ≤360px 小屏：仅压缩间距。
+			   ⚠️ 这里**不再**把模型按钮降级成图标——两行布局后模型独占第二行，
+			   320px 视口也有约 244px 可用（可显示 38/40 字符），降级反而丢信息。
+			   权限文字也无需降级：容器查询阈值已降到 170px，窄屏同样显示。 */
 			"@media (max-width:360px){",
-			"  body.dsh-mobile-ui [class*=_7KE1Ra_root]{min-width:44px !important;max-width:44px !important}",
-			"  body.dsh-mobile-ui button[aria-label*=选择模型] [class*=_7KE1Ra_triggerLabel],body.dsh-mobile-ui button[aria-label*=选择模型] [class*=_7KE1Ra_triggerEffort]{display:none !important}",
-			"  body.dsh-mobile-ui button[aria-label*=选择模型] [class*=_7KE1Ra_triggerIcon]{display:block !important}",
 			"  body.dsh-mobile-ui [class*=uV2eYG_row]{gap:2px !important}",
-			"  body.dsh-mobile-ui [class*=uV2eYG_tools],body.dsh-mobile-ui [class*=uV2eYG_modes]{gap:2px !important}",
-			"  body.dsh-mobile-ui button[aria-label*=上下文]{margin-left:8px !important}",
 			"}",
 			/* 抽屉视觉：右侧圆角 + 更实背景 */
 			"body.dsh-mobile-ui [class*=sidebarCol].dsh-mobile-drawer{border-radius:0 18px 18px 0;padding-bottom:64px !important;box-sizing:border-box !important}",
