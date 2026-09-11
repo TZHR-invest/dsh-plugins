@@ -22,6 +22,27 @@
 **纪律：任何修改插件行为的提交，都必须同时升 `packages/<name>/package.json` 的 `version`；
 只改文档/脚本注释可不升。** 版本号是唯一能让外部用户拿到修复的手段。
 
+**✅ 2026-09-11 已全部补齐（五包三渠道一致）**：上述三例已随版本升版发布；同日另补两处并
+首次发布 `dsh-auto-archive`。当前状态（发布后逐文件 md5 核对通过）：
+
+| 包 | 版本 | 备注 |
+|---|---|---|
+| `dsh-lan-gateway` | 0.2.2 | |
+| `dsh-mobile-ui` | 0.1.2 | |
+| `dsh-vision-tool` | 0.1.2 | |
+| `dsh-web-search-metaso` | 0.1.2 | 修复「切换段漏写 `fetchProvider` → `web_fetch` 全废」 |
+| `dsh-auto-archive` | 0.1.1 | **首次发布**；修复 dsh 0.1.5 `persistence.list()/locate()` 变更致归档静默失效 |
+
+**教训（第二轮，同型复发）**：metaso 这次又是「仓库已修、npm 仍是坏版本」——
+`npm i dsh-web-search-metaso` 装到 0.1.1 会复现 `web_fetch` 全废故障。
+**升版本必须与修改放进同一个提交**，否则下一次仍会漏。核对现状用一条命令：
+
+```bash
+for d in packages/*/; do n=$(basename $d); r=$(node -p "require('./$d/package.json').version"); \
+  m=$(npm view "$(node -p "require('./$d/package.json').name")" version 2>/dev/null || echo 未发布); \
+  [ "$r" = "$m" ] && echo "✓ $n $r" || echo "⚠ $n 仓库=$r npm=$m"; done
+```
+
 **发布后必须核对产物内容**（不要只看 `npm publish` 成功）：
 
 ```bash
