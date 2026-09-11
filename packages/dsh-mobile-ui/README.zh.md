@@ -28,13 +28,14 @@ bash install.sh --uninstall  # 卸载
 ```bash
 bash scripts/build.sh                       # 语法 + 契约预检（含 classic-script 校验）
 bash scripts/package.sh                     # 打包 dist/dsh-mobile-ui-install.tar.gz
-python3 tests/mobile-layout-probe.py        # 移动端布局回归探针（提问卡片可滚动/选项可达）
+python3 tests/mobile-layout-probe.py        # 移动端布局回归探针（提问卡片 + 输入区操作行）
 ```
 
-**提问卡片回归探针**（`tests/mobile-layout-probe.py`）：用真实上游 CSS + 真实 DOM 嵌套 +
-真实插件代码，在 headless Chromium 里按视口 × 选项数跑矩阵，断言「正文可滚 / 真实手指
-滑动后最后一个选项可见 / 提交按钮始终可见 / 右上角菜单按钮不遮挡卡片」，回归时退出码 1。
-它守的是两条硬纪律——
+**回归探针**（`tests/mobile-layout-probe.py`）：用真实上游 CSS + 真实 DOM 嵌套 +
+真实插件代码，在 headless Chromium 里按视口跑矩阵，回归时退出码 1。两组：
+
+**① 提问卡片**（视口 × 选项数）：断言「正文可滚 / 真实手指滑动后最后一个选项可见 /
+提交按钮始终可见 / 右上角菜单按钮不遮挡卡片」。它守的是两条硬纪律——
 
 1. **绝不要覆盖提问卡片正文（`Mbwy4a_body` / `data-question-scroll`）的 overflow**：
    上游卡片是 `max-height:min(60vh,520px)+overflow:hidden`，正文才是它唯一的滚动容器，
@@ -43,7 +44,18 @@ python3 tests/mobile-layout-probe.py        # 移动端布局回归探针（提�
    正好压在提问卡片标题右侧（截图实证），所以菜单按钮的显隐要按
    「抽屉 / 设置面板 / 提问卡片」三态判定，而不是只看抽屉。
 
-探针已做**双向对照**验证：最老版本（滚动缺陷）与仅修滚动的版本都返回 1，
+**② 输入区操作行**（视口 × 会话页/首页）：断言「任意两个控件都不重叠 / 不越出输入卡
+右边界 / 都点得到」。它守的是第三条硬纪律——
+
+3. **绝不能用"禁止换行 + 强行收缩"来硬塞单行**：上游组内按钮有
+   `min-width:44px` 不可压缩，`flex-wrap:nowrap` 下宽度不足时 flex 无法收缩化解，
+   只能**溢出重叠**（2026-09-11 修复的真实故障：390px 会话页
+   访问模式↔模型重叠 5.7px、模型↔上下文重叠 4.3px）。正确做法是恢复上游
+   `flex-wrap:wrap` 作兜底，并让 **trailing 组吃满余量、只留模型按钮一个可收缩项**。
+   另注意 `[class*=trigger]` 会误命中上游 `_7KE1Ra_triggerLabel/Icon/Effort`
+   （类名都含 "trigger"），选择器必须收窄为 `button[class*=trigger]`。
+
+探针已做**双向对照**验证：修复前的版本返回 1（抓到 4 个重叠/越界用例），
 完整修复版返回 0 —— 即它抓得住这两类缺陷，不是"永远绿灯"的假探针。
 
 本地快速迭代：复制到 `~/.dsh/profiles/node_modules/dsh-mobile-ui/` 后刷新页面
@@ -61,6 +73,10 @@ python3 tests/mobile-layout-probe.py        # 移动端布局回归探针（提�
   卡片自身的 max-height 放开、正文保持为唯一滚动容器（卡片内 `data-question-scroll`），
   footer 钉在浮层底部。选择器优先用上游稳定属性（`data-question-key` /
   `data-question-scroll` / `data-composer-seat`），hash 类名只作兜底。
+- **操作行**：不硬塞单行——恢复上游 `flex-wrap:wrap` 兜底，trailing 组
+  `flex:1 1 0` 吃满余量、右对齐，全行只留模型选择器一个可收缩项（超出省略号截断）；
+  访问模式收成 44px 图标、上下文 36px。≤360px 时模型按钮按上游 `@container` 的
+  意图收成图标（44px），一行仍放得下 5~6 个控件。
 
 ## 维护须知（重要）
 

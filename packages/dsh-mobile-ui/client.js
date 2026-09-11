@@ -99,14 +99,32 @@ window.__ModuleLoader__.load({
 			"  body.dsh-mobile-ui [class*=Mbwy4a_footer] [class*=progress]{flex:0 1 auto !important;min-width:0 !important}",
 			"  body.dsh-mobile-ui [class*=Mbwy4a_pager]{flex:0 1 auto !important;min-width:0 !important}",
 			"  body.dsh-mobile-ui [class*=Mbwy4a_footer] button[class*=_primary]{flex:0 0 auto !important}",
-			/* 操作行单行紧凑：hero 4 元素 / 会话页 5 元素（含上下文按钮）一行放下。
+			/* 操作行紧凑：hero 4 元素 / 会话页 5 元素（含上下文按钮）一行放下。
 			   权限按钮移动端图标模式（44px 隐藏文字防撑宽），上下文紧凑 36px，
-			   模型选择器 127px 居中显示（轻微截断可接受） */
-			"  body.dsh-mobile-ui [class*=uV2eYG_row]{flex-wrap:nowrap !important;gap:4px !important}",
-			"  body.dsh-mobile-ui [class*=uV2eYG_row] > *{flex:0 1 auto !important}",
-			"  body.dsh-mobile-ui [class*=uV2eYG_tools],body.dsh-mobile-ui [class*=uV2eYG_modes]{padding:0 !important;gap:4px !important}",
-			"  body.dsh-mobile-ui [class*=uV2eYG_row] [class*=trigger]{display:flex !important;align-items:center !important;line-height:1.2 !important}",
-			"  body.dsh-mobile-ui button[aria-label*=选择模型]{display:flex !important;align-items:center !important;justify-content:center !important;flex:0 0 auto !important;max-width:136px !important;font-size:11px !important;padding:0 6px !important;overflow:hidden !important;text-overflow:ellipsis !important;white-space:nowrap !important}",
+			   模型选择器最长 136px、可伸缩、超出省略号截断。
+			   ⚠️ 2026-09-11 修复「模型/上下文/控制按钮三者在会话页重叠」：
+			   ① 旧规则 [class*=uV2eYG_row] [class*=trigger] 会误命中上游的
+			      _7KE1Ra_triggerLabel / triggerIcon / triggerEffort（类名都含 "trigger"），
+			      用 display:flex !important 顶掉上游 @container(width<=360px) 的折叠，
+			      把模型按钮撑到 136px 且无法收缩 —— 选择器收窄为 button[class*=trigger]；
+			   ② 旧 row 强制 nowrap 且把 tools/trailing 都设成 flex:0 1 auto，
+			      但组内按钮有 44px min-width 不可压缩，宽度不足时不是换行而是**溢出**，
+			      于是模型按钮压住上下文环、访问模式按钮压住模型按钮（实测重叠 5.7px/4.3px）。
+			      改法：恢复上游 flex-wrap:wrap 作兜底（宁可换行绝不重叠），
+			      trailing 吃满余量并右对齐，全行只留模型按钮一个可收缩项。 */
+			"  body.dsh-mobile-ui [class*=uV2eYG_row]{flex-wrap:wrap !important;gap:4px !important;row-gap:2px !important}",
+			"  body.dsh-mobile-ui [class*=uV2eYG_row] > *{flex:0 1 auto !important;min-width:0 !important}",
+			"  body.dsh-mobile-ui [class*=uV2eYG_tools]{flex:0 0 auto !important;padding:0 !important;gap:4px !important}",
+			"  body.dsh-mobile-ui [class*=uV2eYG_modes]{padding:0 !important;gap:4px !important}",
+			"  body.dsh-mobile-ui [class*=uV2eYG_trailing]{flex:1 1 0 !important;min-width:0 !important;justify-content:flex-end !important}",
+			"  body.dsh-mobile-ui [class*=uV2eYG_trailing] [class*=JObwrW_root]{flex:0 0 auto !important}",
+			"  body.dsh-mobile-ui [class*=uV2eYG_row] button[class*=trigger]{display:flex !important;align-items:center !important;line-height:1.2 !important}",
+			"  body.dsh-mobile-ui [class*=_7KE1Ra_root]{flex:0 1 auto !important;min-width:0 !important;max-width:136px !important;overflow:hidden !important}",
+			"  body.dsh-mobile-ui button[aria-label*=选择模型]{display:flex !important;align-items:center !important;justify-content:center !important;flex:1 1 auto !important;min-width:0 !important;max-width:100% !important;width:100% !important;font-size:11px !important;padding:0 6px !important;overflow:hidden !important;text-overflow:ellipsis !important;white-space:nowrap !important}",
+			"  body.dsh-mobile-ui button[aria-label*=选择模型] [class*=_7KE1Ra_triggerLabel]{display:block !important;min-width:0 !important;overflow:hidden !important;text-overflow:ellipsis !important;white-space:nowrap !important}",
+			"  body.dsh-mobile-ui button[aria-label*=选择模型] [class*=_7KE1Ra_triggerEffort]{display:block !important;flex:0 1 auto !important}",
+			/* 图标在移动端默认不显示（文字信息量更大；窄屏才切换成图标模式，见 ≤360px 块） */
+			"  body.dsh-mobile-ui button[aria-label*=选择模型] [class*=_7KE1Ra_triggerIcon]{display:none !important}",
 			"  body.dsh-mobile-ui button[aria-label*=访问模式]{width:44px !important;flex:0 0 44px !important;padding:0 !important;justify-content:center !important}",
 			"  body.dsh-mobile-ui button[aria-label*=访问模式] span,body.dsh-mobile-ui button[aria-label*=访问模式] [class*=label]{display:none !important}",
 			"  body.dsh-mobile-ui button[aria-label*=上下文]{width:36px !important;max-width:36px !important;min-width:36px !important;flex:0 0 36px !important;padding:0 !important;font-size:10px !important;justify-content:center !important;overflow:hidden !important}",
@@ -138,9 +156,12 @@ window.__ModuleLoader__.load({
 			"  body.dsh-mobile-ui [class*=scrollBody] [class*=actions] button,body.dsh-mobile-ui [class*=scrollBody] [class*=tools] button{min-width:36px;min-height:36px;display:inline-flex;align-items:center;justify-content:center}",
 			"}",
 
-			/* 320px 小屏: 操作行进一步压缩防重叠 */
+			/* ≤360px 小屏：操作行进一步压缩；模型按钮收成图标（对齐上游 @container 折叠意图，
+			   一行 5 个控件仍放得下，不再靠"挤到重叠"来维持单行） */
 			"@media (max-width:360px){",
-			"  body.dsh-mobile-ui button[aria-label*=选择模型]{max-width:110px !important}",
+			"  body.dsh-mobile-ui [class*=_7KE1Ra_root]{max-width:44px !important}",
+			"  body.dsh-mobile-ui button[aria-label*=选择模型] [class*=_7KE1Ra_triggerLabel],body.dsh-mobile-ui button[aria-label*=选择模型] [class*=_7KE1Ra_triggerEffort]{display:none !important}",
+			"  body.dsh-mobile-ui button[aria-label*=选择模型] [class*=_7KE1Ra_triggerIcon]{display:block !important}",
 			"  body.dsh-mobile-ui [class*=uV2eYG_row]{gap:2px !important}",
 			"  body.dsh-mobile-ui [class*=uV2eYG_tools],body.dsh-mobile-ui [class*=uV2eYG_modes]{gap:2px !important}",
 			"  body.dsh-mobile-ui button[aria-label*=上下文]{margin-left:8px !important}",

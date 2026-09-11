@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""dsh-mobile-ui 移动端布局探针：提问卡片（ask_user_question）可读性回归测试。
+"""dsh-mobile-ui 移动端布局探针：两处可读性/几何回归测试。
 
-## 为什么需要这个探针
+## 一、提问卡片（ask_user_question）
 
 提问卡片曾在手机上出现「选项看不全 + 手指滑动也没反应」的故障（2026-09-11 定位修复）。
 根因不是样式不生效，而是**覆盖了上游唯一的滚动容器**：
@@ -13,15 +13,28 @@
       ② body 不再是滚动容器，③ 覆盖层里也没有可滚内容
       ⇒ 手指滑动零反应，后面的选项永久不可见
 
-这类故障**静默且只在内容溢出时出现**（1~3 个选项时一切正常），靠肉眼审查 CSS 极难发现，
-所以固化成几何测量：在真实上游 CSS + 真实 DOM 嵌套 + 真实插件代码下，
-用 Playwright 断言「正文可滚 / 滚到底末项可见 / 真实触摸滑动后末项可见 / 提交按钮始终可见」。
+## 二、输入区操作行（composer row）
+
+操作行曾出现「模型选择器压住上下文环 / 访问模式按钮压住模型选择器」（2026-09-11 定位修复）。
+根因是**两条插件规则互相配合出的溢出**：
+
+    旧插件规则  [class*=uV2eYG_row]{flex-wrap:nowrap}          ← 禁止换行
+    旧插件规则  [class*=uV2eYG_row] > *{flex:0 1 auto}          ← 组可收缩
+    上游组内按钮 min-width:44px                                 ← 但按钮不可压缩
+    ⇒ 行宽不足时 flex 无法通过收缩解决，又禁止换行 ⇒ 各控件**溢出重叠**
+      （实测 390px 会话页：访问模式↔模型重叠 5.7px、模型↔上下文重叠 4.3px）
+
+这类故障同样**静默且只在特定宽度/控件数下出现**（hero 页 4 控件正常、会话页
+多一个上下文按钮就重叠），肉眼审查 CSS 极难穷举，所以固化成几何测量：
+真实上游 CSS + 真实 DOM 嵌套 + 真实插件代码，断言「任意两个控件都不重叠」。
 
 ## 用法
 
     python3 tests/mobile-layout-probe.py                 # 默认测当前安装副本
     python3 tests/mobile-layout-probe.py --plugin ./client.js
     python3 tests/mobile-layout-probe.py --viewport 320x568 --options 12
+    python3 tests/mobile-layout-probe.py --only composer  # 只跑操作行
+    python3 tests/mobile-layout-probe.py --only qa        # 只跑提问卡片
 
 依赖：playwright（python）+ 已安装的 dsh（用于抽取上游 CSS）。退出码非 0 表示回归。
 """
@@ -45,6 +58,8 @@ DEFAULT_PLUGIN = pathlib.Path.home() / ".dsh/plugins/dsh-mobile-ui/client.js"
 
 CONV_CSS_RE = r'const css\$4 = ("(?:[^"\\]|\\.)*");'
 QQ_CSS_RE = r'const css = ("(?:[^"\\]|\\.)*");'
+# 输入区（InputBar）上游 CSS：uV2eYG 词根
+INPUTBAR_CSS_RE = r'const css\$1 = ("(?:[^"\\]|\\.)*");'
 
 
 def extract_css(path: pathlib.Path, pattern: str, what: str) -> str:
@@ -197,6 +212,178 @@ def apply_plugin(page, plugin: pathlib.Path) -> None:
     )
 
 
+def build_composer_page(plugin: pathlib.Path, with_context: bool, with_effort: bool) -> str:
+    """复现页：真实上游 InputBar CSS + 真实 DOM 嵌套（composerSeat > stack > root > card > row > tools/trailing）。
+
+    with_context: 会话页有「上下文已用」按钮（hero 页没有）——正是多这一个控件才触发重叠。
+    with_effort:  模型名带推理等级后缀（triggerEffort），会额外占宽。
+    """
+    conv_css = extract_css(DSH_NODE_MODULES / "dsh-client-ui-conversation/lib/client.js", CONV_CSS_RE, "ConversationRoot")
+    input_css = extract_css(
+        DSH_NODE_MODULES / "dsh-client-ui-conversation/lib/client.js", INPUTBAR_CSS_RE, "InputBar")
+
+    effort = '<span class="_7KE1Ra_triggerEffort">Max</span>' if with_effort else ""
+    ctx_btn = (
+        '<span class="JObwrW_root"><button type="button" class="JObwrW_trigger" '
+        'aria-label="上下文已用 18%" aria-haspopup="dialog"><svg viewBox="0 0 14 14" width="14" height="14">'
+        '<circle class="JObwrW_track" cx="7" cy="7" r="5"></circle>'
+        '<circle class="JObwrW_fill" cx="7" cy="7" r="5" stroke-dasharray="5.6 31.4" '
+        'transform="rotate(-90 7 7)"></circle></svg></button></span>'
+        if with_context else ""
+    )
+
+    return f"""<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>composer-row-probe</title>
+<style>
+:root{{
+  --dsw-alias-bg-base:#16171b; --dsw-alias-bg-layer-1:#1e1f24; --dsw-specific-input-major:#26272d;
+  --dsw-specific-menu:#2a2b31; --dsw-specific-selector:#33343a;
+  --dsw-alias-label-primary:rgba(255,255,255,.9); --dsw-alias-label-secondary:rgba(255,255,255,.7);
+  --dsw-alias-label-tertiary:rgba(255,255,255,.5); --dsw-alias-label-caption:rgba(255,255,255,.4);
+  --dsw-alias-border-l2:rgba(255,255,255,.14); --dsw-alias-border-l3:rgba(255,255,255,.2);
+  --dsw-alias-interactive-bg-hover:rgba(255,255,255,.08);
+  --dsh-composer-side-clearance:12px; --dsh-composer-card-max-width:720px;
+  --dsh-composer-text-max-height:200px; --dsh-content-font-size:14px;
+  --dsh-conversation-column-width:100%;
+}}
+html,body{{margin:0;padding:0;height:100%;background:var(--dsw-alias-bg-base);color:#eee;
+  font-family:-apple-system,"PingFang SC",system-ui,sans-serif}}
+{conv_css}
+{input_css}
+#app{{height:100%;display:grid;grid-template-columns:260px minmax(0,1fr) 0px}}
+.sidebarCol{{background:#1a1b1f}} .detailsCol{{background:#1a1b1f}}
+</style></head>
+<body>
+<div id="app" class="frame">
+  <div class="sidebarCol" data-testid="sidebar">sidebar</div>
+  <div class="wSkVaW_root" data-phase="active">
+    <div class="wSkVaW_header" style="padding:8px 12px">会话标题</div>
+    <div class="wSkVaW_body">
+      <div class="wSkVaW_scrollBody" data-conversation-scroll>
+        <div data-slot="conversation.session"><div class="wSkVaW_viewArea">&nbsp;</div></div>
+        <div class="wSkVaW_composerSeat" data-composer-seat>
+          <div class="wSkVaW_composerStack">
+            <div class="uV2eYG_root">
+              <div class="uV2eYG_card">
+                <div class="uV2eYG_scroll"><div class="uV2eYG_grow">
+                  <div class="uV2eYG_input" contenteditable="true" aria-label="发消息"></div>
+                </div></div>
+                <div class="uV2eYG_row">
+                  <div class="uV2eYG_tools">
+                    <button type="button" class="uV2eYG_add" aria-label="指令">
+                      <svg viewBox="0 0 16 16" width="14" height="14"><path d="M8 3v10M3 8h10" stroke="currentColor" fill="none"/></svg></button>
+                    <button type="button" class="uV2eYG_add" aria-label="添加附件">
+                      <svg viewBox="0 0 16 16" width="14" height="14"><path d="M5 8h6" stroke="currentColor" fill="none"/></svg></button>
+                    <div class="uV2eYG_modes">
+                      <button type="button" class="Sh0Q9G_trigger" aria-label="访问模式，当前：完全权限"
+                        ><span class="Sh0Q9G_triggerIcon"><svg viewBox="0 0 16 16" width="14" height="14"><path d="M8 1l6 3v4c0 4-3 6-6 7-3-1-6-3-6-7V4z" fill="none" stroke="currentColor"/></svg></span><span class="Sh0Q9G_triggerLabel">完全权限</span></button>
+                    </div>
+                  </div>
+                  <div class="uV2eYG_trailing">
+                    <div class="_7KE1Ra_root">
+                      <button type="button" class="_7KE1Ra_trigger" aria-label="选择模型，当前 commandcode/deepseek/deepseek-v4.1-flash" aria-haspopup="menu">
+                        <svg class="_7KE1Ra_triggerIcon" viewBox="0 0 16 16" width="16" height="16"><path d="M2 8h12" stroke="currentColor" fill="none"/></svg>
+                        <span class="_7KE1Ra_triggerLabel">commandcode/deepseek/deepseek-v4.1-flash</span>
+                        {effort}
+                        <svg class="_7KE1Ra_chevron" viewBox="0 0 14 14" width="14" height="14"><path d="M4 6l3 3 3-3" stroke="currentColor" fill="none"/></svg>
+                      </button>
+                    </div>
+                    {ctx_btn}
+                    <button type="button" class="uV2eYG_primary" aria-label="发送消息">
+                      <svg viewBox="0 0 16 16" width="16" height="16"><path d="M8 13V3M4 7l4-4 4 4" stroke="currentColor" fill="none"/></svg></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="detailsCol" data-testid="details">details</div>
+</div>
+<script>window.__ModuleLoader__={{mode:"queue",load:function(reg){{window.__reg=reg}}}};</script>
+<script src="file://{plugin}"></script>
+<script>window.__plug=window.__reg;window.__plug.factory(function(){{}});</script>
+</body></html>"""
+
+
+COMPOSER_MEASURE_JS = r"""
+() => {
+  const row = document.querySelector('[class*=uV2eYG_row]');
+  if (!row) return {err: 'no composer row'};
+  const btns = [...row.querySelectorAll('button')].map(b => {
+    const r = b.getBoundingClientRect();
+    return {aria: (b.getAttribute('aria-label')||'').slice(0, 24),
+            x: +r.x.toFixed(1), y: +r.y.toFixed(1), right: +r.right.toFixed(1),
+            bottom: +r.bottom.toFixed(1), w: +r.width.toFixed(1), h: +r.height.toFixed(1)};
+  });
+  // 任意两个控件重叠 = 回归（正是 2026-09-11 的故障形态）
+  const overlaps = [];
+  for (let i = 0; i < btns.length; i++) for (let j = i + 1; j < btns.length; j++) {
+    const a = btns[i], b = btns[j];
+    const ox = Math.min(a.right, b.right) - Math.max(a.x, b.x);
+    const oy = Math.min(a.bottom, b.bottom) - Math.max(a.y, b.y);
+    if (ox > 0.5 && oy > 0.5) overlaps.push({a: a.aria, b: b.aria, ox: +ox.toFixed(1)});
+  }
+  const card = document.querySelector('[class*=uV2eYG_card]');
+  const cardRight = card ? +card.getBoundingClientRect().right.toFixed(1) : null;
+  // 控件越出输入卡右边界 = 溢出（窄屏下被裁掉，点不到）
+  const spill = cardRight === null ? [] : btns
+      .filter(b => b.right > cardRight + 0.5)
+      .map(b => ({aria: b.aria, over: +(b.right - cardRight).toFixed(1)}));
+  const rowBox = row.getBoundingClientRect();
+  return {
+    rowH: +rowBox.height.toFixed(1), rowW: +rowBox.width.toFixed(1),
+    count: btns.length,
+    minW: btns.length ? Math.min(...btns.map(b => b.w)) : 0,
+    overlaps, spill,
+    // 控件是否都可点（中心点命中自己）
+    unclickable: btns.filter(b => {
+      const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+      const hit = document.elementFromPoint(cx, cy);
+      const el = [...row.querySelectorAll('button')].find(x => {
+        const r = x.getBoundingClientRect();
+        return Math.abs(r.x - b.x) < .5 && Math.abs(r.width - b.w) < .5; });
+      return !hit || !el || !(hit === el || el.contains(hit) || hit.contains(el));
+    }).map(b => b.aria),
+  };
+}
+"""
+
+
+def probe_composer(plugin, viewport, with_context, with_effort, workdir):
+    """操作行几何探针：断言控件互不重叠、不越界、可点击，且不靠重叠维持单行。"""
+    from playwright.sync_api import sync_playwright
+
+    w, h = viewport
+    html = build_composer_page(plugin, with_context, with_effort)
+    tag = f"composer-{'sess' if with_context else 'hero'}-{'eff' if with_effort else 'noeff'}-{w}x{h}"
+    page_path = workdir / f"{tag}.html"
+    page_path.write_text(html, encoding="utf-8")
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        ctx = browser.new_context(
+            viewport={"width": w, "height": h}, device_scale_factor=2, is_mobile=True, has_touch=True
+        )
+        page = ctx.new_page()
+        page.goto(page_path.as_uri())
+        apply_plugin(page, plugin)
+        page.wait_for_timeout(500)
+        m = page.evaluate(COMPOSER_MEASURE_JS)
+        browser.close()
+
+    return {
+        "viewport": f"{w}x{h}",
+        "variant": "会话页(含上下文)" if with_context else "首页(hero)",
+        "effort": with_effort,
+        **m,
+    }
+
+
 def probe(plugin, viewport, options, detail_paras, workdir):
     from playwright.sync_api import sync_playwright
 
@@ -257,11 +444,12 @@ def probe(plugin, viewport, options, detail_paras, workdir):
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="dsh-mobile-ui 提问卡片移动端布局探针")
+    ap = argparse.ArgumentParser(description="dsh-mobile-ui 移动端布局探针（提问卡片 + 输入区操作行）")
     ap.add_argument("--plugin", default=str(DEFAULT_PLUGIN), help="被测 client.js 路径")
     ap.add_argument("--viewport", action="append", default=None, help="WxH，可重复（默认覆盖常见机型）")
     ap.add_argument("--options", type=int, action="append", default=None, help="选项数量，可重复")
     ap.add_argument("--detail-paras", type=int, default=2, help="detail 长文本段落数")
+    ap.add_argument("--only", choices=["qa", "composer"], default=None, help="只跑其中一组")
     ap.add_argument("--json", action="store_true", help="输出 JSON")
     args = ap.parse_args()
 
@@ -272,39 +460,82 @@ def main() -> int:
     viewports = [tuple(int(x) for x in v.lower().split("x")) for v in (args.viewport or ["320x568", "360x640", "390x844", "414x896"])]
     options_list = args.options or [1, 3, 6, 12]
 
-    results = []
+    qa_results, composer_results = [], []
     with tempfile.TemporaryDirectory(prefix="dsh-mobile-probe-") as tmp:
-        for vp in viewports:
-            for n in options_list:
-                results.append(probe(plugin, vp, n, args.detail_paras, pathlib.Path(tmp)))
+        wd = pathlib.Path(tmp)
+        if args.only in (None, "qa"):
+            for vp in viewports:
+                for n in options_list:
+                    qa_results.append(probe(plugin, vp, n, args.detail_paras, wd))
+        if args.only in (None, "composer"):
+            # 会话页（含上下文按钮）+ 首页 hero，两种控件数都要过；带推理等级后缀更宽
+            for vp in viewports:
+                for with_ctx in (True, False):
+                    composer_results.append(probe_composer(plugin, vp, with_ctx, True, wd))
 
-    failures = [
-        r for r in results
+    qa_failures = [
+        r for r in qa_results
         if not r["last_visible_after_swipe"] or not r["submit_visible"]
         or not r["menu_btn_hidden_while_qa"] or (r["needs_scroll"] and not r["scrollable"])
     ]
+    composer_failures = [
+        r for r in composer_results
+        if r.get("err") or r.get("overlaps") or r.get("spill") or r.get("unclickable")
+        or r.get("count", 0) < 2
+    ]
 
     if args.json:
-        # 纯 JSON 输出（供 CI/脚本消费）；结论用退出码表达
-        print(json.dumps({"ok": not failures, "results": results}, ensure_ascii=False, indent=2))
-        return 1 if failures else 0
-    else:
-        print(f"被测插件: {plugin}")
+        print(json.dumps({
+            "ok": not qa_failures and not composer_failures,
+            "qa": qa_results, "composer": composer_results,
+        }, ensure_ascii=False, indent=2))
+        return 1 if (qa_failures or composer_failures) else 0
+
+    print(f"被测插件: {plugin}")
+
+    if qa_results:
+        print()
+        print("── 提问卡片（ask_user_question）──")
         print(f"{'视口':<10} {'选项数':<7} {'内容溢出':<9} {'正文可滚':<9} {'滑动后末项可见':<15} {'提交可见':<9} {'菜单不遮挡':<10}")
         print("-" * 78)
-        for r in results:
+        for r in qa_results:
             print(f"{r['viewport']:<10} {r['options']:<8} {'是' if r['needs_scroll'] else '否':<10} "
                   f"{'✓' if r['scrollable'] else ('—' if not r['needs_scroll'] else '✗'):<10} "
                   f"{'✓' if r['last_visible_after_swipe'] else '✗':<16} {'✓' if r['submit_visible'] else '✗':<10} "
                   f"{'✓' if r['menu_btn_hidden_while_qa'] else '✗':<10}")
 
+    if composer_results:
+        print()
+        print("── 输入区操作行（composer row）──")
+        print(f"{'视口':<10} {'形态':<16} {'控件数':<7} {'重叠':<9} {'越界':<7} {'不可点':<7}")
+        print("-" * 66)
+        for r in composer_results:
+            if r.get("err"):
+                print(f"{r['viewport']:<10} {r['variant']:<16} ERR {r['err']}")
+                continue
+            print(f"{r['viewport']:<10} {r['variant']:<16} {r['count']:<8} "
+                  f"{'✓' if not r['overlaps'] else '✗':<10} {'✓' if not r['spill'] else '✗':<8} "
+                  f"{'✓' if not r['unclickable'] else '✗':<8}")
+
     print()
-    if failures:
-        print(f"❌ 回归：{len(failures)} 个用例不达标（选项被裁 / 滚动失效 / 提交按钮不可见）")
-        for r in failures:
-            print(f"   - {r['viewport']} options={r['options']}: {r['detail']['before']}")
+    if qa_failures or composer_failures:
+        if qa_failures:
+            print(f"❌ 提问卡片回归：{len(qa_failures)} 个用例不达标（选项被裁 / 滚动失效 / 提交按钮不可见）")
+            for r in qa_failures:
+                print(f"   - {r['viewport']} options={r['options']}: {r['detail']['before']}")
+        if composer_failures:
+            print(f"❌ 操作行回归：{len(composer_failures)} 个用例不达标（控件重叠 / 越界 / 不可点击）")
+            for r in composer_failures:
+                print(f"   - {r['viewport']} {r.get('variant')}: 重叠={r.get('overlaps')} "
+                      f"越界={r.get('spill')} 不可点={r.get('unclickable')} err={r.get('err')}")
         return 1
-    print(f"✅ 全部 {len(results)} 个用例通过：选项可滚可见、提交按钮始终可见、菜单按钮不遮挡卡片")
+
+    parts = []
+    if qa_results:
+        parts.append(f"提问卡片 {len(qa_results)} 个（选项可滚可见、提交始终可见、菜单不遮挡）")
+    if composer_results:
+        parts.append(f"操作行 {len(composer_results)} 个（控件互不重叠、不越界、可点击）")
+    print("✅ 全部通过：" + "；".join(parts))
     return 0
 
 
