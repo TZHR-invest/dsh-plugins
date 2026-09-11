@@ -366,6 +366,21 @@ COMPOSER_MEASURE_JS = r"""
     }
   }
 
+  // ── 视觉一致性（2026-09-11 用户反馈"高度不一致、怪怪的"的守卫）──
+  // 同一操作行内所有按钮必须等高、同字号，且行内垂直中心离散 ≤1.5px
+  const heights = [...new Set(btns.map(b => Math.round(b.h)))];
+  const fonts = [...new Set([...row.querySelectorAll('button')]
+      .map(b => getComputedStyle(b).fontSize))];
+  // 按 top 分簇（不能用中心 y：控件 44px 高、两行中心仅差 50px，
+  // 阈值稍大就会把两行并成一簇。等高后同行 top 必然相同，故对 top 聚类最稳）
+  const tops = btns.map(b => b.y).sort((a, b) => a - b);
+  const clusters = [];
+  for (const ty of tops) {
+    if (!clusters.length || ty - clusters[clusters.length - 1][0] > 6) clusters.push([ty]);
+    else clusters[clusters.length - 1].push(ty);
+  }
+  const lineSpreads = clusters.map(c => +(Math.max(...c) - Math.min(...c)).toFixed(1));
+
   // 垂直对齐：label / chevron / 图标中心相对按钮中心的偏差 ≤1.5px
   const cy = (el) => { const b = el.getBoundingClientRect(); return b.y + b.height / 2; };
   const misaligned = [];
@@ -386,6 +401,7 @@ COMPOSER_MEASURE_JS = r"""
     overlaps, spill,
     accessIconShown, accessLabelShown, accessLabelW, effortShown,
     modelLabelClipped, ellipsisOk, misaligned, modelLabelW,
+    heights, fonts, lineSpreads,
     // 控件是否都可点（中心点命中自己）
     unclickable: btns.filter(b => {
       const cx = b.x + b.w / 2, cy2 = b.y + b.h / 2;
@@ -550,6 +566,11 @@ def main() -> int:
         or 0 < (r.get("modelLabelW") or 0) < 120
         # 图标/文字/箭头必须垂直居中对齐
         or r.get("misaligned")
+        # 控件必须等高、同字号（曾 36/40/44 三种高度混排 → 视觉"怪"）
+        or len(r.get("heights") or [1]) != 1
+        or len(r.get("fonts") or [1]) != 1
+        # 行内垂直中心离散 ≤1.5px（发送键上游 translateY(-2px) 曾致偏移）
+        or any(s > 1.5 for s in (r.get("lineSpreads") or [0]))
     ]
 
     if args.json:
@@ -624,6 +645,12 @@ def main() -> int:
                     why.append(f"模型名被压得过窄({mw}px < 120px)")
                 if r.get("misaligned"):
                     why.append(f"垂直未对齐={r['misaligned']}")
+                if len(r.get("heights") or [1]) != 1:
+                    why.append(f"控件高度不一致={r.get('heights')}")
+                if len(r.get("fonts") or [1]) != 1:
+                    why.append(f"字号不一致={r.get('fonts')}")
+                if any(s > 1.5 for s in (r.get("lineSpreads") or [0])):
+                    why.append(f"行内中心离散过大={r.get('lineSpreads')}")
                 if r.get("count", 0) < 2:
                     why.append(f"控件数异常={r.get('count')}")
                 print(f"   - {r['viewport']} {r.get('variant')}: " + "；".join(why or ["未知"]))

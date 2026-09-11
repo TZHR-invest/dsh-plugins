@@ -50,13 +50,15 @@ window.__ModuleLoader__.load({
 			"  body.dsh-mobile-ui [class*=composerSeat],body.dsh-mobile-ui [class*=composerStack]{padding-bottom:calc(10px + env(safe-area-inset-bottom,0px)) !important}",
 			/* 头部紧凑（允许换行，标题不再截断） */
 			"  body.dsh-mobile-ui [class*=header]{flex-wrap:wrap;row-gap:4px}",
-			/* 触摸目标：composer 区按钮/触发器 ≥44px（iOS HIG）。
+			/* 触摸目标：composer 区按钮统一 44px（iOS HIG 最小可点尺寸）。
+			   上游本身高度不一（add 28 / PermissionSelect 28 / 模型 28 / ContextMeter 28
+			   / primary 34），下面「操作行统一高度」块会全部拉到 44px，
+			   这里只负责给一个所有按钮都能继承的基线。
 			   ⚠️ 必须限定 button：上游 _7KE1Ra_triggerLabel / triggerIcon / triggerEffort
-			   类名里也含 "trigger"，裸 [class*=trigger] 会把 min-height:40px 套到这些
+			   类名里也含 "trigger"，裸 [class*=trigger] 会把 min-height 套到这些
 			   span 上 → label 被撑成整行高、文字贴顶 → 视觉上 chevron 像"掉到下一行"
 			   （2026-09-11 用户截图实证；与下面 访问模式/选择模型 的选择器收窄同源）。 */
 			"  body.dsh-mobile-ui [class*=composerSeat] button,body.dsh-mobile-ui [class*=composerStack] button{min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center}",
-			"  body.dsh-mobile-ui [class*=composerSeat] button[class*=trigger],body.dsh-mobile-ui [class*=composerStack] button[class*=trigger]{min-height:40px}",
 			/* 统计行（LLM 用时/首token）允许换行防截断（分段 nowrap 片段的父容器） */
 			"  body.dsh-mobile-ui [class*=composerStack] > *,body.dsh-mobile-ui [class*=composerSeat] > *{white-space:normal !important;overflow-wrap:anywhere !important}",
 			/* 抽屉会话列表项触摸目标 44px */
@@ -116,7 +118,7 @@ window.__ModuleLoader__.load({
 			      于是模型按钮压住上下文环、访问模式按钮压住模型按钮（实测重叠 5.7px/4.3px）。
 			      改法：恢复上游 flex-wrap:wrap 作兜底（宁可换行绝不重叠），
 			      trailing 吃满余量并右对齐，全行只留模型按钮一个可收缩项。 */
-			"  body.dsh-mobile-ui [class*=uV2eYG_row]{flex-wrap:wrap !important;gap:4px !important;row-gap:2px !important}",
+			"  body.dsh-mobile-ui [class*=uV2eYG_row]{flex-wrap:wrap !important;gap:8px !important;row-gap:6px !important}",
 			"  body.dsh-mobile-ui [class*=uV2eYG_row] > *{flex:0 1 auto !important;min-width:0 !important}",
 			/* ── 移动端操作行改「两行」布局（2026-09-11 按用户选择实施）────────────
 			   第一行：工具组（+ / 附件 / 访问模式）
@@ -126,11 +128,11 @@ window.__ModuleLoader__.load({
 			   工具组最少占 120px，单行最多只能给出约 61px（10/40 字符，实测）。
 			   两行后模型独占一行，实测同一视口可显示 38/40 字符。
 			   代价：行高 52 → 90px（多占约 38px 垂直空间）。 */
-			"  body.dsh-mobile-ui [class*=uV2eYG_tools]{flex:0 0 100% !important;padding:0 !important;gap:2px !important}",
-			"  body.dsh-mobile-ui [class*=uV2eYG_modes]{padding:0 !important;gap:2px !important}",
+			"  body.dsh-mobile-ui [class*=uV2eYG_tools]{flex:0 0 100% !important;padding:0 !important;gap:8px !important}",
+			"  body.dsh-mobile-ui [class*=uV2eYG_modes]{padding:0 !important;gap:8px !important}",
 			/* trailing 独占第二行；模型根吃满余量（flex:1 1 auto），
 			   上下文环与发送键自然被推到最右，与第一行左缘对齐、右侧贴边 */
-			"  body.dsh-mobile-ui [class*=uV2eYG_trailing]{flex:1 1 100% !important;min-width:0 !important;justify-content:flex-start !important;gap:2px !important}",
+			"  body.dsh-mobile-ui [class*=uV2eYG_trailing]{flex:1 1 100% !important;min-width:0 !important;justify-content:flex-start !important;gap:8px !important}",
 			"  body.dsh-mobile-ui [class*=uV2eYG_trailing] [class*=JObwrW_root]{flex:0 0 auto !important}",
 			"  body.dsh-mobile-ui [class*=uV2eYG_row] button[class*=trigger]{display:flex !important;align-items:center !important;line-height:1.2 !important}",
 			/* 模型选择器：独占第二行后**不再设宽度上限**——上限会留出难看的空隙，
@@ -165,8 +167,28 @@ window.__ModuleLoader__.load({
 			"  body.dsh-mobile-ui button[aria-label*=访问模式] [class*=triggerLabel]{display:none !important;line-height:1.2 !important;min-width:0 !important;overflow:hidden !important;text-overflow:ellipsis !important;white-space:nowrap !important}",
 			/* chevron 在移动端省略（该按钮语义已由盾牌图标 + 文字表达，省 18px 留给模型名） */
 			"  body.dsh-mobile-ui button[aria-label*=访问模式] [class*=chevron]{display:none !important}",
-			"  body.dsh-mobile-ui button[aria-label*=上下文]{width:36px !important;max-width:36px !important;min-width:36px !important;flex:0 0 36px !important;padding:0 !important;font-size:10px !important;justify-content:center !important;overflow:hidden !important}",
+			"  body.dsh-mobile-ui button[aria-label*=上下文]{width:44px !important;max-width:44px !important;min-width:44px !important;flex:0 0 44px !important;padding:0 !important;font-size:11px !important;justify-content:center !important;overflow:hidden !important}",
 			"  body.dsh-mobile-ui button[aria-label*=上下文] span,body.dsh-mobile-ui button[aria-label*=上下文] [class*=label]{max-width:30px !important;overflow:hidden !important;text-overflow:ellipsis !important;white-space:nowrap !important}",
+			/* ── 操作行「视觉统一」四件事（2026-09-11 用户反馈"高度不一致、怪怪的"）──
+			   实测病灶（412px 会话页）：
+			     第一行 36px（+ / 附件 / 权限），第二行 40px（模型 / 上下文）+ 44px（发送）
+			     → 同一行内 36 vs 40 vs 44 三种高度；发送键还带上游 translateY(-2px)
+			     （单行时代的视觉补偿），多行布局下让它的中心比同行低 2px。
+			   修法：全部拉到 44px（顺带满足 iOS HIG 最小可点尺寸，实测原来
+			     `+`/附件/权限 只有 36px 可点高度、模型/上下文 40px，都偏小），
+			   取消发送键的 translateY，字号统一 12px（原模型 11 / 权限 13 / 上下文 10）。*/
+			"  body.dsh-mobile-ui [class*=uV2eYG_row] button{min-height:44px !important;height:44px !important}",
+			"  body.dsh-mobile-ui [class*=uV2eYG_add]{width:44px !important;min-width:44px !important;max-width:44px !important}",
+			"  body.dsh-mobile-ui [class*=_7KE1Ra_root]{height:44px !important}",
+			"  body.dsh-mobile-ui [class*=JObwrW_root],body.dsh-mobile-ui [class*=JObwrW_trigger]{height:44px !important}",
+			"  body.dsh-mobile-ui [class*=uV2eYG_primary]{transform:none !important}",
+			"  body.dsh-mobile-ui [class*=uV2eYG_row] button{font-size:12px !important}",
+			"  body.dsh-mobile-ui [class*=uV2eYG_row] [class*=triggerLabel]{font-size:12px !important;line-height:1.2 !important}",
+			"  body.dsh-mobile-ui button[aria-label*=访问模式] [class*=triggerIcon] svg{width:16px !important;height:16px !important}",
+			/* 权限按钮与 + / 附件 同一视觉语言（上游它是无底色的紧凑触发器，
+			   夹在两个圆形实底按钮中间显得"缺一块"，是"怪"的主要来源） */
+			"  body.dsh-mobile-ui button[aria-label*=访问模式]{background:var(--dsw-specific-selector) !important;border-radius:999px !important}",
+			"  body.dsh-mobile-ui button[aria-label*=访问模式]:active{background:var(--dsw-alias-interactive-bg-hover-solid,var(--dsw-alias-interactive-bg-hover)) !important}",
 			/* 输入框圆角与内边距（视觉更圆润、输入更舒适；卡左右加宽） */
 			"  body.dsh-mobile-ui [class*=input]{border-radius:18px !important}",
 			"  body.dsh-mobile-ui [class*=uV2eYG_root]{padding-left:8px !important;padding-right:8px !important}",
@@ -190,8 +212,14 @@ window.__ModuleLoader__.load({
 			"  body.dsh-mobile-ui [class*=header] [class*=title],body.dsh-mobile-ui [class*=crumbs]{white-space:normal;overflow-wrap:anywhere}",
 			/* 输入框聚焦反馈 */
 			"  body.dsh-mobile-ui textarea:focus,body.dsh-mobile-ui [class*=input]:focus-within{outline:none;box-shadow:0 0 0 2px var(--dsw-alias-brand-primary,rgba(79,124,255,.45))}",
-			/* 消息流操作按钮（复制/反馈/分享）触摸目标提升 */
-			"  body.dsh-mobile-ui [class*=scrollBody] [class*=actions] button,body.dsh-mobile-ui [class*=scrollBody] [class*=tools] button{min-width:36px;min-height:36px;display:inline-flex;align-items:center;justify-content:center}",
+			/* 消息流操作按钮（复制/反馈/分享）触摸目标提升。
+			   ⚠️ 必须限定在 [class*=flowItem] 内：消息流里**并不存在** [class*=tools]
+			   （实测消息流只有 xzv4MW_actions / TS9iAW_actions），所以裸
+			   `[class*=scrollBody] [class*=tools] button` 唯一命中的对象是**输入框里的
+			   uV2eYG_tools**，把 + / 附件 / 权限 三个按钮压成 36px ——
+			   这正是"第一行 36px、第二行 40/44px 高度不一致"的根源
+			   （2026-09-11 用户反馈"选项卡和输入按钮高度不一致"实测定案）。 */
+			"  body.dsh-mobile-ui [class*=scrollBody] [class*=flowItem] [class*=actions] button,body.dsh-mobile-ui [class*=scrollBody] [class*=flowItem] [class*=tools] button{min-width:36px;min-height:36px;display:inline-flex;align-items:center;justify-content:center}",
 			/* ── 按「行实际宽度」决定权限按钮是否显示文字（容器查询，不用视口猜）──
 			   操作行上游自带 container-type:inline-size，故这里以行宽为判据：
 			   两行布局后第一行由工具组独占，「盾牌图标 + 完全权限」合计约 158px，
