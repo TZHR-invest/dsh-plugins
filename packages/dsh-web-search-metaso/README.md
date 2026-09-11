@@ -63,3 +63,24 @@ Written to the profile's `cordis.patch.yml` by the installer:
 > 在 OpenClash fake-ip 网络下境外站点基本都取不到）。
 
 Optional: `apiKeyEnv` (default `METASO_API_KEY`, also resolved via the credentials domain), `baseURL` (default `https://metaso.cn/api/v1`), `scope` (default `webpage`), `includeSummary` (default true), `includeRawContent` (default false), `maxResults` (default 10, 1-100).
+
+## 会话遥测事件（`web/metaso-search-request`）为何要判断宿主词汇表
+
+本插件每次搜索会向会话日志追加一条遥测事件 `web/metaso-search-request`。**dsh 的会话
+格式迁移器只认识宿主内置的事件类型白名单**，遇到白名单外的类型会**拒绝整段会话**：
+
+```
+format v0 contains unknown historical event type "web/metaso-search-request" at seq N;
+migration refuses unknown historical events even when ignorable
+```
+
+→ 后果是**凡是用过本插件搜索的历史会话都打不开**（2026-09-11 实发：某机 10 个会话受影响）。
+且 `session.append` **不校验类型**，所以写入时一切正常，故障只在**读回**时才暴露。
+(`ignorable` 也救不了：v0 迁移路径下 `allowLegacySteering` 恒为 true。)
+
+**因此 `recordRequest` 会先用动态 import 取宿主的 `KNOWN_SESSION_EVENT_TYPES`，
+宿主不认识就跳过这条遥测** —— 宁可少一条日志，也不让会话读不出来。
+
+> 用动态 import 而非静态：静态 import 解析失败会**直接毁掉整个插件**；动态失败只跳过遥测。
+> 已打开的**旧会话**（日志里已含该事件）需要宿主侧补丁才能读回，
+> 见 meshdeck 仓 `scripts/dsh-reapply-session-event-patch.py`。

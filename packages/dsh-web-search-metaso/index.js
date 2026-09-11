@@ -39,6 +39,24 @@ export const inject = ["web"];
 
 export const METASO_PROVIDER_ID = "metaso";
 export const METASO_READER_PROVIDER_ID = "metaso-reader";
+/**
+ * 搜索请求遥测的事件类型。落盘前必须确认宿主认识它：session.append 不校验
+ * 类型，而写入宿主词汇表外的事件会让整个会话在读取时被拒（dsh 0.1.5-rc.2 起），
+ * 插件又没有 API 可以把事件标记为 ignorable。
+ *
+ * 宿主词汇表用动态 import 惰性获取并缓存：解析不到就当作「宿主不认识」，
+ * 只跳过遥测 —— 静态 import 解析失败会直接毁掉整个插件，绝不能那么写。
+ */
+export const METASO_SEARCH_REQUEST_EVENT = "web/metaso-search-request";
+let hostEventVocabulary;
+function hostKnowsSearchRequestEvent() {
+  if (hostEventVocabulary === undefined) {
+    hostEventVocabulary = import("@deepseek-ai/dsh-session")
+      .then((mod) => mod.KNOWN_SESSION_EVENT_TYPES ?? null)
+      .catch(() => null);
+  }
+  return hostEventVocabulary;
+}
 export const METASO_DEFAULT_BASE_URL = "https://metaso.cn/api/v1";
 export const METASO_DEFAULT_API_KEY_ENV = "METASO_API_KEY";
 const METASO_SCOPES = ["webpage", "document", "paper", "image", "video", "podcast"];
@@ -260,7 +278,15 @@ function resolveOptions(ctx, config) {
     includeRawContent: config.includeRawContent ?? false,
     maxResults: config.maxResults ?? 10,
     recordRequest: (request) => {
-      ctx.get("agents")?.currentInitiator()?.session.append("web/metaso-search-request", request);
+      // 宿主不认识该类型就跳过这条遥测 —— 宁可少一条日志，也不让会话读不出来。
+      const session = ctx.get("agents")?.currentInitiator()?.session;
+      if (session === undefined) return;
+      hostKnowsSearchRequestEvent()
+        .then((known) => {
+          if (known === null || !known.has(METASO_SEARCH_REQUEST_EVENT)) return;
+          session.append(METASO_SEARCH_REQUEST_EVENT, request);
+        })
+        .catch(() => {});
     },
   };
 }
