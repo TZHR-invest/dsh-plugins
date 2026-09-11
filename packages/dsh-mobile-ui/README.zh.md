@@ -44,19 +44,37 @@ python3 tests/mobile-layout-probe.py        # 移动端布局回归探针（提�
    正好压在提问卡片标题右侧（截图实证），所以菜单按钮的显隐要按
    「抽屉 / 设置面板 / 提问卡片」三态判定，而不是只看抽屉。
 
-**② 输入区操作行**（视口 × 会话页/首页）：断言「任意两个控件都不重叠 / 不越出输入卡
-右边界 / 都点得到」。它守的是第三条硬纪律——
+**② 输入区操作行**（视口 × 会话页/首页 × 长/短模型名）：断言「任意两个控件都不重叠 /
+不越出输入卡右边界 / 都点得到 / 权限图标常显 / 被裁模型名走真省略号 / 图标文字箭头
+垂直居中对齐」。它守的是第三条硬纪律——
 
 3. **绝不能用"禁止换行 + 强行收缩"来硬塞单行**：上游组内按钮有
    `min-width:44px` 不可压缩，`flex-wrap:nowrap` 下宽度不足时 flex 无法收缩化解，
    只能**溢出重叠**（2026-09-11 修复的真实故障：390px 会话页
    访问模式↔模型重叠 5.7px、模型↔上下文重叠 4.3px）。正确做法是恢复上游
    `flex-wrap:wrap` 作兜底，并让 **trailing 组吃满余量、只留模型按钮一个可收缩项**。
-   另注意 `[class*=trigger]` 会误命中上游 `_7KE1Ra_triggerLabel/Icon/Effort`
-   （类名都含 "trigger"），选择器必须收窄为 `button[class*=trigger]`。
 
-探针已做**双向对照**验证：修复前的版本返回 1（抓到 4 个重叠/越界用例），
-完整修复版返回 0 —— 即它抓得住这两类缺陷，不是"永远绿灯"的假探针。
+**⚠️ `[class*=trigger]` / `[class*=访问模式] span` 这两类词根选择器是本插件最危险的坑**
+（2026-09-11 一次性踩中三处，全部静默）：
+
+- 上游 `_7KE1Ra_triggerLabel / triggerIcon / triggerEffort` 类名里都含 **"trigger"**。
+  `[class*=trigger]{display:flex}` 会把 `text-overflow:ellipsis` 废掉（flex 容器忽略它）
+  → 模型名被**硬切出半个字符**；`[class*=trigger]{min-height:40px}` 还会把 label
+  撑成整行高、文字贴顶 → 视觉上 chevron 像"掉到下一行"。
+  ⇒ 一律限定 `button[class*=trigger]`；省略号必须配 `display:block`。
+- `button[aria-label*=访问模式] span{display:none}` 的 `span` 通配会连**盾牌图标**
+  （也是 span）一起隐藏 → 整个按钮**纯空白**。⇒ 只隐藏 `[class*=triggerLabel]`，
+  图标必须常显（它是该按钮唯一不变的识别物）。
+
+另外两条同源教训：**trailing 的 `min-width` 不能给小**（`flex:1 1 0` + `min-width:0`
++ `justify-content:flex-end` 时，盒宽小于内容最小宽会把子元素**向左溢出**压住工具组——
+实测 `min-width:96px` 时 365px 压 9px、410px 压 2px；而"模型名至少多宽"这种业务意图
+不该用 min-width 表达）；**按容器查询而非视口猜**（操作行自带 `container-type:inline-size`，
+`@container (min-width:324px)` 决定权限文字显隐，比按视口宽度判断稳）。
+
+探针已做**双向对照**验证：修复前的版本返回 1（抓到 4 个重叠/越界用例 +
+"权限图标被隐藏"/"推理等级后缀未隐藏"），完整修复版返回 0 —— 即它抓得住这两类缺陷，
+不是"永远绿灯"的假探针。
 
 本地快速迭代：复制到 `~/.dsh/profiles/node_modules/dsh-mobile-ui/` 后刷新页面
 （客户端插件有 HMR 通道，改 client.js 后页面自动更新）。
@@ -74,9 +92,10 @@ python3 tests/mobile-layout-probe.py        # 移动端布局回归探针（提�
   footer 钉在浮层底部。选择器优先用上游稳定属性（`data-question-key` /
   `data-question-scroll` / `data-composer-seat`），hash 类名只作兜底。
 - **操作行**：不硬塞单行——恢复上游 `flex-wrap:wrap` 兜底，trailing 组
-  `flex:1 1 0` 吃满余量、右对齐，全行只留模型选择器一个可收缩项（超出省略号截断）；
-  访问模式收成 44px 图标、上下文 36px。≤360px 时模型按钮按上游 `@container` 的
-  意图收成图标（44px），一行仍放得下 5~6 个控件。
+  `flex:1 1 0` 吃满余量、右对齐，全行只留模型选择器一个可收缩项（超出走真省略号）；
+  权限按钮恒显盾牌图标、文字由 `@container (min-width:324px)` 按**行实际宽度**决定
+  显隐（≥385px 视口可见「完全权限」，窄于此自动退回纯图标），上下文 36px；
+  ≤360px 时模型按钮按上游 `@container` 的意图收成图标（44px），一行仍放得下 5~6 个控件。
 
 ## 维护须知（重要）
 

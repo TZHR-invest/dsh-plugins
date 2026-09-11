@@ -212,11 +212,14 @@ def apply_plugin(page, plugin: pathlib.Path) -> None:
     )
 
 
-def build_composer_page(plugin: pathlib.Path, with_context: bool, with_effort: bool) -> str:
+def build_composer_page(plugin: pathlib.Path, with_context: bool, with_effort: bool,
+                       model_label: str = "commandcode/deepseek/deepseek-v4.1-flash") -> str:
     """复现页：真实上游 InputBar CSS + 真实 DOM 嵌套（composerSeat > stack > root > card > row > tools/trailing）。
 
     with_context: 会话页有「上下文已用」按钮（hero 页没有）——正是多这一个控件才触发重叠。
     with_effort:  模型名带推理等级后缀（triggerEffort），会额外占宽。
+    model_label:  模型显示名。默认用超长 provider/model（最坏情况，考验省略号）；
+                  短名（目录内模型的友好名）用于对照正常观感。
     """
     conv_css = extract_css(DSH_NODE_MODULES / "dsh-client-ui-conversation/lib/client.js", CONV_CSS_RE, "ConversationRoot")
     input_css = extract_css(
@@ -283,9 +286,9 @@ html,body{{margin:0;padding:0;height:100%;background:var(--dsw-alias-bg-base);co
                   </div>
                   <div class="uV2eYG_trailing">
                     <div class="_7KE1Ra_root">
-                      <button type="button" class="_7KE1Ra_trigger" aria-label="选择模型，当前 commandcode/deepseek/deepseek-v4.1-flash" aria-haspopup="menu">
+                      <button type="button" class="_7KE1Ra_trigger" aria-label="选择模型，当前 {model_label}" aria-haspopup="menu">
                         <svg class="_7KE1Ra_triggerIcon" viewBox="0 0 16 16" width="16" height="16"><path d="M2 8h12" stroke="currentColor" fill="none"/></svg>
-                        <span class="_7KE1Ra_triggerLabel">commandcode/deepseek/deepseek-v4.1-flash</span>
+                        <span class="_7KE1Ra_triggerLabel">{model_label}</span>
                         {effort}
                         <svg class="_7KE1Ra_chevron" viewBox="0 0 14 14" width="14" height="14"><path d="M4 6l3 3 3-3" stroke="currentColor" fill="none"/></svg>
                       </button>
@@ -335,15 +338,56 @@ COMPOSER_MEASURE_JS = r"""
       .filter(b => b.right > cardRight + 0.5)
       .map(b => ({aria: b.aria, over: +(b.right - cardRight).toFixed(1)}));
   const rowBox = row.getBoundingClientRect();
+
+  // ── 子元素可见性断言（2026-09-11 两个静默故障的守卫）──
+  const shown = (sel) => { const el = document.querySelector(sel);
+    return el ? getComputedStyle(el).display !== 'none' : null; };
+  const accessIconShown = shown('button[aria-label*=访问模式] [class*=triggerIcon]');
+  // 权限文字只在行够宽时出现；出现时必须真的可见（不能是 0 宽空壳）
+  const accessLabelEl = document.querySelector('button[aria-label*=访问模式] [class*=triggerLabel]');
+  const accessLabelShown = accessLabelEl ? getComputedStyle(accessLabelEl).display !== 'none' : false;
+  const accessLabelW = accessLabelEl && accessLabelShown
+      ? +accessLabelEl.getBoundingClientRect().width.toFixed(1) : 0;
+  // 推理等级后缀移动端必须隐藏（否则被压成 8px 宽的半截字符）
+  const effortShown = shown('button[aria-label*=选择模型] [class*=triggerEffort]');
+
+  // 省略号是否真的生效：被裁的 label 必须 overflow:hidden + text-overflow:ellipsis
+  // （flex 容器会忽略 text-overflow → 硬切出半个字符，正是用户看到的"半截字母"）
+  const label = document.querySelector('button[aria-label*=选择模型] [class*=_7KE1Ra_triggerLabel]');
+  let ellipsisOk = true, modelLabelClipped = false;
+  if (label) {
+    const lcs = getComputedStyle(label);
+    modelLabelClipped = label.scrollWidth > label.clientWidth + 1;
+    if (modelLabelClipped) {
+      ellipsisOk = lcs.overflow === 'hidden' && lcs.textOverflow === 'ellipsis'
+                   && lcs.display !== 'flex';
+    }
+  }
+
+  // 垂直对齐：label / chevron / 图标中心相对按钮中心的偏差 ≤1.5px
+  const cy = (el) => { const b = el.getBoundingClientRect(); return b.y + b.height / 2; };
+  const misaligned = [];
+  for (const [name, btnSel, innerSel] of [
+      ['模型名', 'button[aria-label*=选择模型]', '[class*=_7KE1Ra_triggerLabel]'],
+      ['模型箭头', 'button[aria-label*=选择模型]', '[class*=_7KE1Ra_chevron]'],
+      ['权限图标', 'button[aria-label*=访问模式]', '[class*=triggerIcon]']]) {
+    const btn = document.querySelector(btnSel), el = document.querySelector(innerSel);
+    if (!btn || !el || getComputedStyle(el).display === 'none') continue;
+    const dev = Math.abs(cy(el) - cy(btn));
+    if (dev > 1.5) misaligned.push({name, dev: +dev.toFixed(1)});
+  }
+
   return {
     rowH: +rowBox.height.toFixed(1), rowW: +rowBox.width.toFixed(1),
     count: btns.length,
     minW: btns.length ? Math.min(...btns.map(b => b.w)) : 0,
     overlaps, spill,
+    accessIconShown, accessLabelShown, accessLabelW, effortShown,
+    modelLabelClipped, ellipsisOk, misaligned,
     // 控件是否都可点（中心点命中自己）
     unclickable: btns.filter(b => {
-      const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
-      const hit = document.elementFromPoint(cx, cy);
+      const cx = b.x + b.w / 2, cy2 = b.y + b.h / 2;
+      const hit = document.elementFromPoint(cx, cy2);
       const el = [...row.querySelectorAll('button')].find(x => {
         const r = x.getBoundingClientRect();
         return Math.abs(r.x - b.x) < .5 && Math.abs(r.width - b.w) < .5; });
@@ -354,13 +398,15 @@ COMPOSER_MEASURE_JS = r"""
 """
 
 
-def probe_composer(plugin, viewport, with_context, with_effort, workdir):
-    """操作行几何探针：断言控件互不重叠、不越界、可点击，且不靠重叠维持单行。"""
+def probe_composer(plugin, viewport, with_context, with_effort, workdir,
+                   model_label="commandcode/deepseek/deepseek-v4.1-flash"):
+    """操作行几何探针：断言控件互不重叠、不越界、可点击，且关键子元素该显示的都在。"""
     from playwright.sync_api import sync_playwright
 
     w, h = viewport
-    html = build_composer_page(plugin, with_context, with_effort)
-    tag = f"composer-{'sess' if with_context else 'hero'}-{'eff' if with_effort else 'noeff'}-{w}x{h}"
+    html = build_composer_page(plugin, with_context, with_effort, model_label)
+    tag = (f"composer-{'sess' if with_context else 'hero'}-{'eff' if with_effort else 'noeff'}"
+           f"-{'long' if len(model_label) > 20 else 'short'}-{w}x{h}")
     page_path = workdir / f"{tag}.html"
     page_path.write_text(html, encoding="utf-8")
 
@@ -378,7 +424,8 @@ def probe_composer(plugin, viewport, with_context, with_effort, workdir):
 
     return {
         "viewport": f"{w}x{h}",
-        "variant": "会话页(含上下文)" if with_context else "首页(hero)",
+        "variant": ("会话页(含上下文)" if with_context else "首页(hero)")
+                   + ("/长模型名" if len(model_label) > 20 else "/短模型名"),
         "effort": with_effort,
         **m,
     }
@@ -468,10 +515,14 @@ def main() -> int:
                 for n in options_list:
                     qa_results.append(probe(plugin, vp, n, args.detail_paras, wd))
         if args.only in (None, "composer"):
-            # 会话页（含上下文按钮）+ 首页 hero，两种控件数都要过；带推理等级后缀更宽
+            # 会话页（含上下文按钮）+ 首页 hero；模型名分超长(provider/model 兜底)与短名两种，
+            # 都要过：带推理等级后缀更宽，长名考验省略号。
             for vp in viewports:
                 for with_ctx in (True, False):
                     composer_results.append(probe_composer(plugin, vp, with_ctx, True, wd))
+            for vp in viewports[:2]:
+                composer_results.append(probe_composer(
+                    plugin, vp, True, True, wd, model_label="DeepSeek V4.1 Flash"))
 
     qa_failures = [
         r for r in qa_results
@@ -482,6 +533,16 @@ def main() -> int:
         r for r in composer_results
         if r.get("err") or r.get("overlaps") or r.get("spill") or r.get("unclickable")
         or r.get("count", 0) < 2
+        # 权限图标必须常显（曾被 span 通配规则连图标一起隐藏 → 整个按钮空白）
+        or not r.get("accessIconShown")
+        # 权限文字若显示，就必须真的有宽度（不能是 0 宽空壳）
+        or (r.get("accessLabelShown") and (r.get("accessLabelW") or 0) < 20)
+        # 推理等级后缀必须隐藏（否则被压成半截字符）
+        or r.get("effortShown")
+        # 被裁的模型名必须走真省略号，不能硬切半个字符
+        or (r.get("modelLabelClipped") and not r.get("ellipsisOk"))
+        # 图标/文字/箭头必须垂直居中对齐
+        or r.get("misaligned")
     ]
 
     if args.json:
@@ -507,15 +568,20 @@ def main() -> int:
     if composer_results:
         print()
         print("── 输入区操作行（composer row）──")
-        print(f"{'视口':<10} {'形态':<16} {'控件数':<7} {'重叠':<9} {'越界':<7} {'不可点':<7}")
-        print("-" * 66)
+        print(f"{'视口':<10} {'形态':<24} {'控件':<5} {'重叠':<6} {'越界':<6} {'可点':<6} "
+              f"{'权限图标':<9} {'权限文字':<9} {'省略号':<8} {'对齐':<6}")
+        print("-" * 96)
         for r in composer_results:
             if r.get("err"):
-                print(f"{r['viewport']:<10} {r['variant']:<16} ERR {r['err']}")
+                print(f"{r['viewport']:<10} {r['variant']:<24} ERR {r['err']}")
                 continue
-            print(f"{r['viewport']:<10} {r['variant']:<16} {r['count']:<8} "
-                  f"{'✓' if not r['overlaps'] else '✗':<10} {'✓' if not r['spill'] else '✗':<8} "
-                  f"{'✓' if not r['unclickable'] else '✗':<8}")
+            ell = "—" if not r.get("modelLabelClipped") else ("✓" if r.get("ellipsisOk") else "✗")
+            perm_txt = ("✓" if r.get("accessLabelShown") else "—")
+            print(f"{r['viewport']:<10} {r['variant']:<24} {r['count']:<6} "
+                  f"{'✓' if not r['overlaps'] else '✗':<7} {'✓' if not r['spill'] else '✗':<7} "
+                  f"{'✓' if not r['unclickable'] else '✗':<7} "
+                  f"{'✓' if r.get('accessIconShown') else '✗':<10} {perm_txt:<10} {ell:<9} "
+                  f"{'✓' if not r.get('misaligned') else '✗':<6}")
 
     print()
     if qa_failures or composer_failures:
@@ -524,17 +590,39 @@ def main() -> int:
             for r in qa_failures:
                 print(f"   - {r['viewport']} options={r['options']}: {r['detail']['before']}")
         if composer_failures:
-            print(f"❌ 操作行回归：{len(composer_failures)} 个用例不达标（控件重叠 / 越界 / 不可点击）")
+            print(f"❌ 操作行回归：{len(composer_failures)} 个用例不达标")
             for r in composer_failures:
-                print(f"   - {r['viewport']} {r.get('variant')}: 重叠={r.get('overlaps')} "
-                      f"越界={r.get('spill')} 不可点={r.get('unclickable')} err={r.get('err')}")
+                # 逐条列出真实原因，别只说"重叠/越界"（2026-09-11 曾因此误判）
+                why = []
+                if r.get("err"):
+                    why.append(f"err={r['err']}")
+                if r.get("overlaps"):
+                    why.append(f"控件重叠={r['overlaps']}")
+                if r.get("spill"):
+                    why.append(f"越出卡片={r['spill']}")
+                if r.get("unclickable"):
+                    why.append(f"点不到={r['unclickable']}")
+                if not r.get("accessIconShown"):
+                    why.append("权限图标被隐藏(按钮会变空白)")
+                if r.get("accessLabelShown") and (r.get("accessLabelW") or 0) < 20:
+                    why.append(f"权限文字宽度异常={r.get('accessLabelW')}")
+                if r.get("effortShown"):
+                    why.append("推理等级后缀未隐藏(会被压成半截字符)")
+                if r.get("modelLabelClipped") and not r.get("ellipsisOk"):
+                    why.append("模型名被硬切而非省略号")
+                if r.get("misaligned"):
+                    why.append(f"垂直未对齐={r['misaligned']}")
+                if r.get("count", 0) < 2:
+                    why.append(f"控件数异常={r.get('count')}")
+                print(f"   - {r['viewport']} {r.get('variant')}: " + "；".join(why or ["未知"]))
         return 1
 
     parts = []
     if qa_results:
         parts.append(f"提问卡片 {len(qa_results)} 个（选项可滚可见、提交始终可见、菜单不遮挡）")
     if composer_results:
-        parts.append(f"操作行 {len(composer_results)} 个（控件互不重叠、不越界、可点击）")
+        parts.append(f"操作行 {len(composer_results)} 个（互不重叠/不越界/可点击、"
+                     f"权限图标常显、被裁模型名走省略号、图标文字垂直对齐）")
     print("✅ 全部通过：" + "；".join(parts))
     return 0
 

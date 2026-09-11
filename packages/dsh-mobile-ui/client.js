@@ -50,9 +50,13 @@ window.__ModuleLoader__.load({
 			"  body.dsh-mobile-ui [class*=composerSeat],body.dsh-mobile-ui [class*=composerStack]{padding-bottom:calc(10px + env(safe-area-inset-bottom,0px)) !important}",
 			/* 头部紧凑（允许换行，标题不再截断） */
 			"  body.dsh-mobile-ui [class*=header]{flex-wrap:wrap;row-gap:4px}",
-			/* 触摸目标：composer 区按钮/触发器 ≥44px（iOS HIG） */
+			/* 触摸目标：composer 区按钮/触发器 ≥44px（iOS HIG）。
+			   ⚠️ 必须限定 button：上游 _7KE1Ra_triggerLabel / triggerIcon / triggerEffort
+			   类名里也含 "trigger"，裸 [class*=trigger] 会把 min-height:40px 套到这些
+			   span 上 → label 被撑成整行高、文字贴顶 → 视觉上 chevron 像"掉到下一行"
+			   （2026-09-11 用户截图实证；与下面 访问模式/选择模型 的选择器收窄同源）。 */
 			"  body.dsh-mobile-ui [class*=composerSeat] button,body.dsh-mobile-ui [class*=composerStack] button{min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center}",
-			"  body.dsh-mobile-ui [class*=composerSeat] [class*=trigger],body.dsh-mobile-ui [class*=composerStack] [class*=trigger]{min-height:40px}",
+			"  body.dsh-mobile-ui [class*=composerSeat] button[class*=trigger],body.dsh-mobile-ui [class*=composerStack] button[class*=trigger]{min-height:40px}",
 			/* 统计行（LLM 用时/首token）允许换行防截断（分段 nowrap 片段的父容器） */
 			"  body.dsh-mobile-ui [class*=composerStack] > *,body.dsh-mobile-ui [class*=composerSeat] > *{white-space:normal !important;overflow-wrap:anywhere !important}",
 			/* 抽屉会话列表项触摸目标 44px */
@@ -119,14 +123,38 @@ window.__ModuleLoader__.load({
 			"  body.dsh-mobile-ui [class*=uV2eYG_trailing]{flex:1 1 0 !important;min-width:0 !important;justify-content:flex-end !important}",
 			"  body.dsh-mobile-ui [class*=uV2eYG_trailing] [class*=JObwrW_root]{flex:0 0 auto !important}",
 			"  body.dsh-mobile-ui [class*=uV2eYG_row] button[class*=trigger]{display:flex !important;align-items:center !important;line-height:1.2 !important}",
-			"  body.dsh-mobile-ui [class*=_7KE1Ra_root]{flex:0 1 auto !important;min-width:0 !important;max-width:136px !important;overflow:hidden !important}",
+			/* 模型选择器：可收缩，总宽上限 136px。
+			   ⚠️ min-width 只给 44px（一个图标的宽度）作地板，**不能给大**：
+			   trailing 是 flex:1 1 0 + min-width:0 + justify-content:flex-end，
+			   一旦 trailing 盒宽 < 其内容最小宽，右对齐会把子元素**向左溢出**到 tools 组上
+			   （实测 min-width:96px 时：365px 模型左缘 139 < 权限按钮右缘 148 → 压住 9px；
+			   410px 压 2px）。地板放低后由模型自己吸收全部收缩，任何宽度都不再溢出
+			   （宽度不足时显示省略号；≤360px 另走图标模式）。 */
+			"  body.dsh-mobile-ui [class*=_7KE1Ra_root]{flex:0 1 auto !important;min-width:44px !important;max-width:136px !important;overflow:hidden !important}",
 			"  body.dsh-mobile-ui button[aria-label*=选择模型]{display:flex !important;align-items:center !important;justify-content:center !important;flex:1 1 auto !important;min-width:0 !important;max-width:100% !important;width:100% !important;font-size:11px !important;padding:0 6px !important;overflow:hidden !important;text-overflow:ellipsis !important;white-space:nowrap !important}",
-			"  body.dsh-mobile-ui button[aria-label*=选择模型] [class*=_7KE1Ra_triggerLabel]{display:block !important;min-width:0 !important;overflow:hidden !important;text-overflow:ellipsis !important;white-space:nowrap !important}",
-			"  body.dsh-mobile-ui button[aria-label*=选择模型] [class*=_7KE1Ra_triggerEffort]{display:block !important;flex:0 1 auto !important}",
+			/* 模型名：display:block + overflow:hidden + text-overflow:ellipsis 才有**真省略号**
+			   （flex 容器忽略 text-overflow，会硬切出半个字符——用户截图里的"半截字母"）。
+			   垂直居中由父按钮的 align-items:center 负责（label 自身高度自然，不再被
+			   上面那条 min-height:40px 撑高）。 */
+			"  body.dsh-mobile-ui button[aria-label*=选择模型] [class*=_7KE1Ra_triggerLabel]{display:block !important;line-height:1.2 !important;min-width:0 !important;overflow:hidden !important;text-overflow:ellipsis !important;white-space:nowrap !important}",
+			/* 推理等级（Max）移动端不显示：上游给它 flex-shrink:1000（先消失），
+			   上轮误改成 flex:0 1 auto 后它与模型名一起被压缩，只剩 8px 宽的
+			   半截字符（用户截图实证）。这里直接隐藏，信息仍可在模型菜单里看到。 */
+			"  body.dsh-mobile-ui button[aria-label*=选择模型] [class*=_7KE1Ra_triggerEffort]{display:none !important}",
 			/* 图标在移动端默认不显示（文字信息量更大；窄屏才切换成图标模式，见 ≤360px 块） */
 			"  body.dsh-mobile-ui button[aria-label*=选择模型] [class*=_7KE1Ra_triggerIcon]{display:none !important}",
-			"  body.dsh-mobile-ui button[aria-label*=访问模式]{width:44px !important;flex:0 0 44px !important;padding:0 !important;justify-content:center !important}",
-			"  body.dsh-mobile-ui button[aria-label*=访问模式] span,body.dsh-mobile-ui button[aria-label*=访问模式] [class*=label]{display:none !important}",
+			/* 权限（访问模式）按钮：恢复图标 + 文字。
+			   ⚠️ 旧规则 button[aria-label*=访问模式] span{display:none} 用 span 通配，
+			   连上游的 triggerIcon（盾牌图标也是 span）一起隐藏 → 整个按钮纯空白
+			   （2026-09-11 用户截图实证；此前被控件重叠掩盖）。现在：
+			   图标常显（这是按钮唯一不变的识别物）；文字只在整行有余量时显示
+			   （容器查询按行实际宽度判定，比按视口猜可靠），窄屏自动退回图标模式。
+			   宽度自适应 + 可收缩，避免任何情况下把行撑溢出。 */
+			"  body.dsh-mobile-ui button[aria-label*=访问模式]{width:auto !important;min-width:44px !important;max-width:120px !important;flex:0 1 auto !important;padding:0 6px !important;gap:4px !important;justify-content:center !important}",
+			"  body.dsh-mobile-ui button[aria-label*=访问模式] [class*=triggerIcon]{display:inline-flex !important;flex:0 0 auto !important}",
+			"  body.dsh-mobile-ui button[aria-label*=访问模式] [class*=triggerLabel]{display:none !important;line-height:1.2 !important;min-width:0 !important;overflow:hidden !important;text-overflow:ellipsis !important;white-space:nowrap !important}",
+			/* chevron 在移动端省略（该按钮语义已由盾牌图标 + 文字表达，省 18px 留给模型名） */
+			"  body.dsh-mobile-ui button[aria-label*=访问模式] [class*=chevron]{display:none !important}",
 			"  body.dsh-mobile-ui button[aria-label*=上下文]{width:36px !important;max-width:36px !important;min-width:36px !important;flex:0 0 36px !important;padding:0 !important;font-size:10px !important;justify-content:center !important;overflow:hidden !important}",
 			"  body.dsh-mobile-ui button[aria-label*=上下文] span,body.dsh-mobile-ui button[aria-label*=上下文] [class*=label]{max-width:30px !important;overflow:hidden !important;text-overflow:ellipsis !important;white-space:nowrap !important}",
 			/* 输入框圆角与内边距（视觉更圆润、输入更舒适；卡左右加宽） */
@@ -154,12 +182,20 @@ window.__ModuleLoader__.load({
 			"  body.dsh-mobile-ui textarea:focus,body.dsh-mobile-ui [class*=input]:focus-within{outline:none;box-shadow:0 0 0 2px var(--dsw-alias-brand-primary,rgba(79,124,255,.45))}",
 			/* 消息流操作按钮（复制/反馈/分享）触摸目标提升 */
 			"  body.dsh-mobile-ui [class*=scrollBody] [class*=actions] button,body.dsh-mobile-ui [class*=scrollBody] [class*=tools] button{min-width:36px;min-height:36px;display:inline-flex;align-items:center;justify-content:center}",
+			/* ── 按「行实际宽度」决定权限按钮是否显示文字（容器查询，不用视口猜）──
+			   操作行上游自带 container-type:inline-size，故这里以行宽为判据：
+			   ≥324px 放得下「盾牌图标 + 完全权限 + 模型名 + 上下文 + 发送」时显示文字，
+			   否则保持图标模式。比按视口宽度判断更稳（卡片 max-width 720 会先封顶）。 */
+			"  @container (min-width:324px){",
+			"    body.dsh-mobile-ui button[aria-label*=访问模式] [class*=triggerLabel]{display:block !important}",
+			"  }",
 			"}",
 
 			/* ≤360px 小屏：操作行进一步压缩；模型按钮收成图标（对齐上游 @container 折叠意图，
-			   一行 5 个控件仍放得下，不再靠"挤到重叠"来维持单行） */
+			   一行 5 个控件仍放得下，不再靠"挤到重叠"来维持单行）。
+			   权限按钮此时由上面的容器查询自动退回图标模式（行宽 < 324px），无需重复声明。 */
 			"@media (max-width:360px){",
-			"  body.dsh-mobile-ui [class*=_7KE1Ra_root]{max-width:44px !important}",
+			"  body.dsh-mobile-ui [class*=_7KE1Ra_root]{min-width:44px !important;max-width:44px !important}",
 			"  body.dsh-mobile-ui button[aria-label*=选择模型] [class*=_7KE1Ra_triggerLabel],body.dsh-mobile-ui button[aria-label*=选择模型] [class*=_7KE1Ra_triggerEffort]{display:none !important}",
 			"  body.dsh-mobile-ui button[aria-label*=选择模型] [class*=_7KE1Ra_triggerIcon]{display:block !important}",
 			"  body.dsh-mobile-ui [class*=uV2eYG_row]{gap:2px !important}",
