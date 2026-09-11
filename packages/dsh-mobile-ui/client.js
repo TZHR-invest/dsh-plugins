@@ -118,20 +118,25 @@ window.__ModuleLoader__.load({
 			      trailing 吃满余量并右对齐，全行只留模型按钮一个可收缩项。 */
 			"  body.dsh-mobile-ui [class*=uV2eYG_row]{flex-wrap:wrap !important;gap:4px !important;row-gap:2px !important}",
 			"  body.dsh-mobile-ui [class*=uV2eYG_row] > *{flex:0 1 auto !important;min-width:0 !important}",
-			"  body.dsh-mobile-ui [class*=uV2eYG_tools]{flex:0 0 auto !important;padding:0 !important;gap:4px !important}",
-			"  body.dsh-mobile-ui [class*=uV2eYG_modes]{padding:0 !important;gap:4px !important}",
-			"  body.dsh-mobile-ui [class*=uV2eYG_trailing]{flex:1 1 0 !important;min-width:0 !important;justify-content:flex-end !important}",
+			/* 工具组间距 4→2px：操作行内每一像素都该优先给模型名（仅视觉留白，无信息损失） */
+			"  body.dsh-mobile-ui [class*=uV2eYG_tools]{flex:0 0 auto !important;padding:0 !important;gap:2px !important}",
+			"  body.dsh-mobile-ui [class*=uV2eYG_modes]{padding:0 !important;gap:2px !important}",
+			"  body.dsh-mobile-ui [class*=uV2eYG_trailing]{flex:1 1 0 !important;min-width:0 !important;justify-content:flex-end !important;gap:2px !important}",
 			"  body.dsh-mobile-ui [class*=uV2eYG_trailing] [class*=JObwrW_root]{flex:0 0 auto !important}",
 			"  body.dsh-mobile-ui [class*=uV2eYG_row] button[class*=trigger]{display:flex !important;align-items:center !important;line-height:1.2 !important}",
-			/* 模型选择器：可收缩，总宽上限 136px。
+			/* 模型选择器：可收缩；总宽上限 240px。
+			   ⚠️ 上限给大是**安全**的：根是 flex:0 1 auto，只会占用行内**富余**空间，
+			   行窄时自动收缩，不会去挤别的控件。实测 768px 视口下 240px 能完整显示
+			   `commandcode/deepseek/deepseek-v4.1-flash`（旧上限 136px 只能显示 18/40 字符）。
 			   ⚠️ min-width 只给 44px（一个图标的宽度）作地板，**不能给大**：
 			   trailing 是 flex:1 1 0 + min-width:0 + justify-content:flex-end，
 			   一旦 trailing 盒宽 < 其内容最小宽，右对齐会把子元素**向左溢出**到 tools 组上
 			   （实测 min-width:96px 时：365px 模型左缘 139 < 权限按钮右缘 148 → 压住 9px；
 			   410px 压 2px）。地板放低后由模型自己吸收全部收缩，任何宽度都不再溢出
 			   （宽度不足时显示省略号；≤360px 另走图标模式）。 */
-			"  body.dsh-mobile-ui [class*=_7KE1Ra_root]{flex:0 1 auto !important;min-width:44px !important;max-width:136px !important;overflow:hidden !important}",
-			"  body.dsh-mobile-ui button[aria-label*=选择模型]{display:flex !important;align-items:center !important;justify-content:center !important;flex:1 1 auto !important;min-width:0 !important;max-width:100% !important;width:100% !important;font-size:11px !important;padding:0 6px !important;overflow:hidden !important;text-overflow:ellipsis !important;white-space:nowrap !important}",
+			"  body.dsh-mobile-ui [class*=_7KE1Ra_root]{flex:0 1 auto !important;min-width:44px !important;max-width:240px !important;overflow:hidden !important}",
+			/* 模型按钮内边距 6→4px（左右各省 2px 给文字） */
+			"  body.dsh-mobile-ui button[aria-label*=选择模型]{display:flex !important;align-items:center !important;justify-content:center !important;flex:1 1 auto !important;min-width:0 !important;max-width:100% !important;width:100% !important;font-size:11px !important;padding:0 4px !important;overflow:hidden !important;text-overflow:ellipsis !important;white-space:nowrap !important}",
 			/* 模型名：display:block + overflow:hidden + text-overflow:ellipsis 才有**真省略号**
 			   （flex 容器忽略 text-overflow，会硬切出半个字符——用户截图里的"半截字母"）。
 			   垂直居中由父按钮的 align-items:center 负责（label 自身高度自然，不再被
@@ -150,7 +155,7 @@ window.__ModuleLoader__.load({
 			   图标常显（这是按钮唯一不变的识别物）；文字只在整行有余量时显示
 			   （容器查询按行实际宽度判定，比按视口猜可靠），窄屏自动退回图标模式。
 			   宽度自适应 + 可收缩，避免任何情况下把行撑溢出。 */
-			"  body.dsh-mobile-ui button[aria-label*=访问模式]{width:auto !important;min-width:44px !important;max-width:120px !important;flex:0 1 auto !important;padding:0 6px !important;gap:4px !important;justify-content:center !important}",
+			"  body.dsh-mobile-ui button[aria-label*=访问模式]{width:auto !important;min-width:44px !important;max-width:120px !important;flex:0 1 auto !important;padding:0 4px !important;gap:3px !important;justify-content:center !important}",
 			"  body.dsh-mobile-ui button[aria-label*=访问模式] [class*=triggerIcon]{display:inline-flex !important;flex:0 0 auto !important}",
 			"  body.dsh-mobile-ui button[aria-label*=访问模式] [class*=triggerLabel]{display:none !important;line-height:1.2 !important;min-width:0 !important;overflow:hidden !important;text-overflow:ellipsis !important;white-space:nowrap !important}",
 			/* chevron 在移动端省略（该按钮语义已由盾牌图标 + 文字表达，省 18px 留给模型名） */
@@ -215,7 +220,7 @@ window.__ModuleLoader__.load({
 			/* trailing 基础 gap 2px：hero（无上下文）模型右扩吃 gap，左缘保持不变 */
 			"body.dsh-mobile-ui [class*=uV2eYG_trailing]{gap:2px !important}",
 			/* 会话页（有上下文按钮）：上下文 margin-left 右移 12px（只扩模型↔上下文间距） */
-			"body.dsh-mobile-ui [class*=uV2eYG_trailing]:has(button[aria-label*=上下文]) button[aria-label*=上下文]{margin-left:12px !important}",
+			"body.dsh-mobile-ui [class*=uV2eYG_trailing]:has(button[aria-label*=上下文]) button[aria-label*=上下文]{margin-left:4px !important}",
 			"body.dsh-mobile-ui [class*=VOzbGW_nav]{width:68px !important;flex:0 0 68px !important;min-width:68px !important;overflow:visible !important}",
 			"body.dsh-mobile-ui [class*=VOzbGW_nav] [class*=navList]{flex:1 1 auto !important;height:auto !important;max-height:none !important;overflow-y:auto !important}",
 			"body.dsh-mobile-ui [class*=VOzbGW_nav] button,body.dsh-mobile-ui [class*=VOzbGW_nav] [role=button]{white-space:nowrap !important;overflow:hidden !important;text-overflow:ellipsis !important}",

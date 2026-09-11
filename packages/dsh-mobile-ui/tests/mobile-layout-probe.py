@@ -354,9 +354,11 @@ COMPOSER_MEASURE_JS = r"""
   // 省略号是否真的生效：被裁的 label 必须 overflow:hidden + text-overflow:ellipsis
   // （flex 容器会忽略 text-overflow → 硬切出半个字符，正是用户看到的"半截字母"）
   const label = document.querySelector('button[aria-label*=选择模型] [class*=_7KE1Ra_triggerLabel]');
-  let ellipsisOk = true, modelLabelClipped = false;
+  let ellipsisOk = true, modelLabelClipped = false, modelLabelW = null;
   if (label) {
     const lcs = getComputedStyle(label);
+    const shown = lcs.display !== 'none';
+    modelLabelW = shown ? +label.getBoundingClientRect().width.toFixed(1) : 0;
     modelLabelClipped = label.scrollWidth > label.clientWidth + 1;
     if (modelLabelClipped) {
       ellipsisOk = lcs.overflow === 'hidden' && lcs.textOverflow === 'ellipsis'
@@ -383,7 +385,7 @@ COMPOSER_MEASURE_JS = r"""
     minW: btns.length ? Math.min(...btns.map(b => b.w)) : 0,
     overlaps, spill,
     accessIconShown, accessLabelShown, accessLabelW, effortShown,
-    modelLabelClipped, ellipsisOk, misaligned,
+    modelLabelClipped, ellipsisOk, misaligned, modelLabelW,
     // 控件是否都可点（中心点命中自己）
     unclickable: btns.filter(b => {
       const cx = b.x + b.w / 2, cy2 = b.y + b.h / 2;
@@ -541,6 +543,9 @@ def main() -> int:
         or r.get("effortShown")
         # 被裁的模型名必须走真省略号，不能硬切半个字符
         or (r.get("modelLabelClipped") and not r.get("ellipsisOk"))
+        # 模型名一旦显示就不许被压成窄条（实测修复前 390px 仅 40px → 只能看 7/40 字符）。
+        # 下限取 50px 只拦"灾难性变窄"，不锁死具体宽度（布局微调不该误报）。
+        or 0 < (r.get("modelLabelW") or 0) < 50
         # 图标/文字/箭头必须垂直居中对齐
         or r.get("misaligned")
     ]
@@ -610,6 +615,9 @@ def main() -> int:
                     why.append("推理等级后缀未隐藏(会被压成半截字符)")
                 if r.get("modelLabelClipped") and not r.get("ellipsisOk"):
                     why.append("模型名被硬切而非省略号")
+                mw = r.get("modelLabelW") or 0
+                if 0 < mw < 50:
+                    why.append(f"模型名被压得过窄({mw}px < 50px)")
                 if r.get("misaligned"):
                     why.append(f"垂直未对齐={r['misaligned']}")
                 if r.get("count", 0) < 2:

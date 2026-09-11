@@ -1,6 +1,6 @@
 {
   "name": "dsh-mobile-ui",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Mobile UI for the DeepSeek Harness Web GUI: responsive layout, overlay session drawer, 44px touch targets, safe-area support, reading enhancements (≤768px, zero desktop impact)",
   "type": "module",
   "main": "index.js",
