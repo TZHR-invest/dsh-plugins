@@ -27,7 +27,7 @@
 
 | 包 | 版本 | 备注 |
 |---|---|---|
-| `dsh-lan-gateway` | 0.2.2 | |
+| `dsh-lan-gateway` | **0.2.3** | 安装器不再静默关闭响应压缩（loader patch 整体替换 config；慢链路 11.19MB→3.95MB） |
 | `dsh-mobile-ui` | **0.2.2** | 移动端操作行重做（两行排布 / 等高 44px / 权限按钮空白与半截字符等 5 类修复，0.1.2 → 0.2.2） |
 | `dsh-vision-tool` | 0.1.2 | |
 | `dsh-web-search-metaso` | 0.1.2 | 修复「切换段漏写 `fetchProvider` → `web_fetch` 全废」 |
