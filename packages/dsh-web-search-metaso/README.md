@@ -44,6 +44,22 @@ Written to the profile's `cordis.patch.yml` by the installer:
 - id: web
   config:
     searchProvider: metaso        # delete this block to keep deepseek-official
+    fetchProvider: metaso-reader  # ⚠️ 必写，见下方说明
 ```
+
+> **⚠️ `fetchProvider` 必须一起写**（2026-09-11 四台机器实测）
+>
+> profile patch 的 `config` 块对基础层是**整体替换**而非合并。基础层本身设有
+> `fetchProvider: http`，若这里只写 `searchProvider`，`fetchProvider` 会被吞掉 →
+> `http` 与 `metaso-reader` 两个 fetch provider 同时可用 → 运行时抛：
+>
+> ```
+> multiple usable web providers are registered (http, metaso-reader); configure one explicitly
+> ```
+>
+> **结果是 `web_fetch` 完全不可用**（工具调用直接失败，与目标 URL 无关）。
+> 二者择一：`metaso-reader`（秘塔服务端抓取，返回干净 markdown，不受本地 DNS
+> / fake-ip 影响）或 `http`（本地直连，免费，但会拒绝解析到非公网 IP 的域名——
+> 在 OpenClash fake-ip 网络下境外站点基本都取不到）。
 
 Optional: `apiKeyEnv` (default `METASO_API_KEY`, also resolved via the credentials domain), `baseURL` (default `https://metaso.cn/api/v1`), `scope` (default `webpage`), `includeSummary` (default true), `includeRawContent` (default false), `maxResults` (default 10, 1-100).

@@ -19,8 +19,13 @@
 #   - id: web
 #     config:
 #       searchProvider: metaso
-# 让 web_search 使用秘塔；--no-switch 可跳过（保留 deepseek 官方搜索）。
+#       fetchProvider: metaso-reader
+# 让 web_search / web_fetch 使用秘塔；--no-switch 可跳过（保留 deepseek 官方搜索）。
 # 未提供 key 时只装插件不切换，web_search 行为不变。
+#
+# ⚠️ fetchProvider 必须与 searchProvider 同时写：patch 的 config 块对基础层是
+#    整体替换而非合并，只写 searchProvider 会吞掉基础层的 fetchProvider: http
+#    → http 与 metaso-reader 都可用 → WEB_PROVIDER_AMBIGUOUS → web_fetch 全废。
 set -u
 
 PLUGIN="dsh-web-search-metaso"
@@ -183,10 +188,16 @@ collect_metaso_config() {
   METASO_YAML="$y"
   if [ -n "$API_KEY" ] && [ "$SWITCH" = "1" ]; then
     WEB_SWITCH_YAML="
-# web_search 后端切换到 metaso（删除本段即回退 deepseek 官方搜索）
+# web_search / web_fetch 后端切换到 metaso（删除本段即回退 deepseek 官方默认）
+# ⚠️ 必须同时写 fetchProvider：patch 的 config 块对基础层是【整体替换】而非合并，
+#    只写 searchProvider 会吞掉基础层的 fetchProvider: http → 于是 http 与
+#    metaso-reader 两个 fetch provider 都可用 → 运行时抛 WEB_PROVIDER_AMBIGUOUS
+#    (multiple usable web providers are registered (http, metaso-reader))
+#    → **web_fetch 完全不可用**。2026-09-11 在四台机器上实测复现。
 - id: web
   config:
-    searchProvider: metaso"
+    searchProvider: metaso
+    fetchProvider: metaso-reader"
   fi
   if [ -n "$API_KEY$API_KEY_ENV" ]; then
     echo "  [OK] 秘塔配置已收集（scope=$SCOPE, switch=$SWITCH）"
