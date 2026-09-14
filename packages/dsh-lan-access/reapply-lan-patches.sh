@@ -184,18 +184,44 @@ else
 fi
 
 # ── 3/6 特权围栏补丁（唯一留在 node_modules 的补丁）────────────────────────
-# 定位 dsh 安装根：优先从正在运行的 dsh web 进程推导（其 cwd 即安装根，覆盖
-# npm 全局安装 node ~/.npm-global/bin/dsh web 的场景），其次 npm root -g，
-# 最后回退 ~/.npm/_npx 缓存。以 dsh-client-connection 存在为准（MR-025）。
+# 定位 dsh 安装根（2026-09-14 扩策略）。
+# ⚠️ 为什么改：原实现只认「pgrep 'dsh web' 的 cwd」→ npm root -g → npx 缓存，
+# 而 office_64g 三条全不成立（cmdline 是 `<abs>/lib/bin.js web`（不含 "dsh web" 子串）、
+# cwd=/（watchdog 先 cd /）、**该机无 npm**）⇒ ROOT 为空 ⇒ 第 4/5/6 层补丁被静默跳过，
+# 表现为"脚本跑了"但门卫没恢复（2026-09-14 实测：--check 在 3/6 直接报"找不到 dsh 安装目录"）。
+# 策略顺序：
+#   ① 监听 3080 的进程 cmdline（argv[1] = dsh bin.js 绝对路径，最准）
+#   ② 运行中进程的 cwd（devbox 的 systemd WorkingDirectory 指向安装根）
+#   ③ 已知安装位置（npm root -g，其次常见前缀，含 ~/.local/node）
+#   ④ ~/.npm/_npx 缓存
+# 以 dsh-client-connection 存在为准（MR-025）。
 ROOT=""
-for PID in $(pgrep -f "dsh web" 2>/dev/null); do
-  [ "$PID" = "$$" ] && continue
-  CWD=$(readlink "/proc/$PID/cwd" 2>/dev/null || true)
-  [ -n "$CWD" ] && [ -d "$CWD/node_modules/@deepseek-ai/dsh-client-connection" ] && ROOT="$CWD" && break
-done
+DSH_ENTRY_RE='bin\.js web|dsh web|node_modules/\.bin/dsh web'
+
+PID=$(ss -ltnp 2>/dev/null | awk '/:3080 /{print $NF}' | grep -o 'pid=[0-9]*' | head -1 | cut -d= -f2)
+[ -z "${PID:-}" ] && PID=$(pgrep -f "$DSH_ENTRY_RE" 2>/dev/null | head -1)
+if [ -n "${PID:-}" ] && [ "$PID" != "$$" ]; then
+  EXE=$(tr '\0' ' ' < "/proc/$PID/cmdline" 2>/dev/null | awk '{print $2}')
+  if [ -n "${EXE:-}" ] && [ -e "$EXE" ]; then
+    CAND=$(dirname "$(dirname "$(readlink -f "$EXE")")")
+    [ -d "$CAND/node_modules/@deepseek-ai/dsh-client-connection" ] && ROOT="$CAND"
+  fi
+fi
 if [ -z "$ROOT" ]; then
-  G=$(npm root -g 2>/dev/null || true)
-  [ -n "$G" ] && [ -d "$G/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-client-connection" ] && ROOT="$G/@deepseek-ai/dsh"
+  for PID in $(pgrep -f "$DSH_ENTRY_RE" 2>/dev/null); do
+    [ "$PID" = "$$" ] && continue
+    CWD=$(readlink "/proc/$PID/cwd" 2>/dev/null || true)
+    [ -n "$CWD" ] && [ -d "$CWD/node_modules/@deepseek-ai/dsh-client-connection" ] && ROOT="$CWD" && break
+  done
+fi
+if [ -z "$ROOT" ]; then
+  for G in "$(npm root -g 2>/dev/null)" "$HOME/.npm-global/lib/node_modules" \
+           "$HOME/.local/node/lib/node_modules" /opt/node/lib/node_modules \
+           "$HOME"/.nvm/versions/node/*/lib/node_modules; do
+    if [ -n "$G" ] && [ -d "$G/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-client-connection" ]; then
+      ROOT="$G/@deepseek-ai/dsh"; break
+    fi
+  done
 fi
 if [ -z "$ROOT" ]; then
   for d in $(ls -dt "$HOME"/.npm/_npx/*/ 2>/dev/null); do

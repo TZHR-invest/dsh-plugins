@@ -20,6 +20,9 @@ for pkg in "$REPO"/packages/*/; do
   [ -f "$pkg/token-gate.js" ] && cp "$pkg/token-gate.js" "$OUT/$NAME/"
   # v2 门卫源码留档：patch-webserver.mjs 就地升级 v2→v3 的匹配基准，缺它则补丁脚本启动即报错
   [ -f "$pkg/token-gate.v2.js" ] && cp "$pkg/token-gate.v2.js" "$OUT/$NAME/"
+  # 所有补丁源（*.mjs）一律入包：写死文件名曾在 2026-09-14 连续漏两次
+  # （token-gate.v2.js、patch-ws-deflate.mjs —— 后者会让 reapply 的 7/7 段在目标机上无源可用）
+  cp "$pkg"/*.mjs "$OUT/$NAME/" 2>/dev/null || true
   [ -f "$pkg/patch-webserver.mjs" ] && cp "$pkg/patch-webserver.mjs" "$OUT/$NAME/"
   [ -f "$pkg/install.sh" ] && cp "$pkg/install.sh" "$OUT/"
   [ -f "$pkg/reapply-lan-patches.sh" ] && cp "$pkg/reapply-lan-patches.sh" "$OUT/"

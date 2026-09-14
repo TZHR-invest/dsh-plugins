@@ -57,11 +57,31 @@ echo "  [OK] $FW"
 
 echo "== 3/5 同步插件源码到 $DST =="
 mkdir -p "$DST"
-cp "$SRC/token-gate.js" "$SRC/token-gate.v2.js" "$SRC/patch-webserver.mjs" "$SRC/package.json" "$DST/"
-for f in README.md README.zh.md install.sh reapply-lan-patches.sh client.js index.js cordis.patch.yml; do
-  [ -f "$SRC/$f" ] && cp "$SRC/$f" "$DST/"
+# 整目录拷（*.js/*.mjs/*.json/*.yml + README*）：写死文件清单会漏掉后加的补丁源
+# （2026-09-14 踩到两次——先漏 install.sh/reapply 在包根，后差点漏 patch-ws-deflate.mjs）。
+for f in "$SRC"/*.js "$SRC"/*.mjs "$SRC"/*.json "$SRC"/*.yml "$SRC"/README*.md; do
+  [ -f "$f" ] && cp "$f" "$DST/"
 done
-[ -f "$SRC/reapply-lan-patches.sh" ] && cp "$SRC/reapply-lan-patches.sh" "$DSH/"
+# ⚠️ tarball 布局里 install.sh / reapply-lan-patches.sh 在**包根**（$SRC 的上一级），不在插件目录内。
+# 只按 $SRC 找会把这两份运维脚本漏掉（2026-09-14 实际踩到：三台机器的 $DSH/reapply-lan-patches.sh
+# 仍是旧版，自检文案还写着"回环豁免应 200"）。这里显式向上找一层。
+PKGROOT="$(dirname "$SRC")"
+if [ -f "$PKGROOT/reapply-lan-patches.sh" ]; then
+  cp "$PKGROOT/reapply-lan-patches.sh" "$DSH/"
+  cp "$PKGROOT/reapply-lan-patches.sh" "$DST/" 2>/dev/null || true
+  echo "  [OK] 已更新 $DSH/reapply-lan-patches.sh（dsh 升级后的恢复入口）"
+else
+  echo "  [提示] $PKGROOT 无 reapply-lan-patches.sh（$DSH/reapply-lan-patches.sh 保持原样）"
+fi
+if [ -f "$PKGROOT/install.sh" ]; then
+  # 只在目标机本来就有这份"随包安装器"时刷新（206 的约定；其他机器只有 reapply）
+  if [ -f "$DSH/plugins/install.sh" ]; then
+    cp "$PKGROOT/install.sh" "$DSH/plugins/install.sh"
+    echo "  [OK] 已更新 $DSH/plugins/install.sh"
+  else
+    echo "  [提示] 该机无 $DSH/plugins/install.sh，跳过（需要时从 tarball 根手动放）"
+  fi
+fi
 echo "  [OK] 已同步（$(ls "$DST" | wc -l) 个文件）"
 
 echo "== 4/5 打补丁（含 v2 -> v3 就地升级）=="
