@@ -158,12 +158,23 @@ else
 fi
 
 # ── 2.5/4 秘塔配置收集（key 可交互输入，scope 默认 webpage）────────────────
+#
+# ⚠️ 优先用 `apiKeyEnv`，不要写明文 `apiKey`（2026-09-15 定案）：
+#   本仓库是 **public**（TZHR-invest/dsh-plugins），而明文 key 会被写进
+#   `~/.dsh/profiles/<profile>/cordis.patch.yml`——那份文件一旦被当成模板
+#   拷进仓库/发给别人，key 就公开了（实测：metaso / memory-recall / opencodex
+#   三把 key 曾以明文同时存在于 5 台机器的同一个 patch 里）。
+#   走 apiKeyEnv 时 patch 只留变量名，凭据放环境变量或 dsh 凭据服务。
+#   推送前自检：`python3 scripts/secret-scan.py --secrets-file ~/.meshdeck-secrets.md`
+#
+# 注：两种方式当前都受支持，`apiKeyEnv` 只是默认推荐路径。
 METASO_YAML=""
 WEB_SWITCH_YAML=""
 collect_metaso_config() {
   if [ -z "$API_KEY$API_KEY_ENV" ] && [ -t 0 ]; then
     echo "== 秘塔配置（dsh-web-search-metaso）=="
     echo "  API key 获取: https://metaso.cn/search-api/api-keys（mk- 开头）"
+    echo "  ⚠️ 建议直接回车两次走 apiKeyEnv：明文 apiKey 会落进 patch 文件（本仓库是公开仓库）"
     read -r -p "  Metaso API key（mk-xxx，回车跳过）: " API_KEY
     if [ -z "$API_KEY" ]; then
       read -r -p "  或 apiKeyEnv（环境变量名，如 METASO_API_KEY，回车跳过）: " API_KEY_ENV
