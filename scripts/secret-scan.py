@@ -51,13 +51,21 @@ PREFIX_RULES: list[tuple[str, re.Pattern[str]]] = [
     ("tailscale auth key", re.compile(r"\btskey-[a-z]+-[A-Za-z0-9]{16,}\b")),
 ]
 
-# ── 规则 B：赋值语境里的字面量（"token: 'abc…'"）────────────────────────────
+# ── 规则 B：赋值语境里的字面量（"token: 'abc…'" / "requirepass abc…"）────────
+# 分隔符允许 `:` / `=`，也允许纯空格（redis.conf 的 `requirepass <pwd>`、
+# `.env` 的 `TOKEN abc` 都是这种形态，只认冒号会整类漏掉）。
+#
+# 两条抗误报约束（都由 2026-09-15 在本仓库实测的假阳性反推）：
+#   ① 引号内**不许有空白** —— 否则 `"/?token=" + encodeURIComponent(x)` 会把
+#      ` + encodeURIComponent(token` 当成 28 字符的「密钥」；
+#   ② 无引号分支要求 **≥20 字符** —— 否则 `const token = lanGateReadToken();`
+#      这类代码（16 字符、无数字）每次都误报。真凭据（api key / 口令）普遍更长。
 CONTEXT_RULE = re.compile(
     r"""(?ix)
     \b( api[_-]?key | apikey | access[_-]?token | auth[_-]?token | token
       | secret | passwd | password | requirepass | credential )
-    \b \s* [:=] \s*
-    (?: ["']([^"'\n]{12,})["'] | ([A-Za-z0-9_\-./+=]{16,}) )
+    \b (?: \s* [:=] \s* | \s+ )
+    (?: ["']([^"'\s]{12,})["'] | ([A-Za-z0-9_\-./+=]{20,}) )
     """
 )
 
@@ -99,8 +107,10 @@ def is_fake(value: str) -> bool:
                 "1234567890", "abcdefghij", "deadbeef"):
         if seq in lowered:
             return True
-    # 形如 abababab…（周期 ≤ 4 的重复）
-    for period in range(1, 5):
+    # 形如 abababab…（周期 2–4 的纯重复）。注意 period 必须从 2 起：
+    # period=1 时切片集合恒为 {整串} → 恒判为「假值」，会把真 hex 全放行
+    # （2026-09-15 自测抓到的真实 bug）。
+    for period in range(2, 5):
         if len(v) % period == 0 and len(set(v[i::period] for i in range(period))) == 1:
             return True
     return PLACEHOLDER.match(v) is not None
@@ -190,7 +200,7 @@ def scan_history(limit: int, hits: list[tuple[str, int, str, str]]) -> int:
         path, lineno = "(?)", 0
         for line in show.splitlines():
             if line.startswith("+++ b/"):
-                path = f"{path if path != '(?)' else ''}{line[6:]}"
+                path = line[6:]
             elif line.startswith("@@"):
                 m = re.search(r"\+(\d+)", line)
                 lineno = int(m.group(1)) - 1 if m else 0
@@ -204,6 +214,30 @@ def scan_history(limit: int, hits: list[tuple[str, int, str, str]]) -> int:
     return count
 
 
+KNOWN_MIN_LEN = 24
+FILE_EXT = re.compile(
+    r"\.(mjs|cjs|js|ts|tsx|jsx|py|sh|bash|md|yml|yaml|json|conf|ini|ps1|exe|dll|log|txt|zst|bak|tar|gz)$",
+    re.I)
+
+
+def looks_like_known_value(v: str) -> bool:
+    """登记文件里的候选值必须「长得像凭据」，不是文件名/路径。
+
+    2026-09-15 实测教训：登记文件正文里出现的 `patch-client-connection.mjs`
+    这类文件名（28 字符）会被当成已知凭据值，于是值级反查在仓库里刷出 9 处
+    假阳性——所以要求「≥24 字符 + 同时含数字与字母 + 不是文件扩展名结尾 +
+    不含路径分隔符」。短于 24 的凭据（如 11 字符激活口令）会被漏掉，
+    这是有意取舍：宁可漏短值，不可让 CI 噪声化。
+    """
+    if len(v) < KNOWN_MIN_LEN:
+        return False
+    if not (re.search(r"\d", v) and re.search(r"[A-Za-z]", v)):
+        return False
+    if FILE_EXT.search(v) or "/" in v or "\\" in v:
+        return False
+    return not is_fake(v)
+
+
 def load_known_values(path: str) -> list[str]:
     text = read_text(path)
     if text is None:
@@ -211,11 +245,8 @@ def load_known_values(path: str) -> list[str]:
     values: set[str] = set()
     for m in re.finditer(r"[A-Za-z0-9_\-]{20,}", text):
         v = m.group(0)
-        if is_fake(v):
-            continue
-        if v.startswith(("http", "packages", "node_modules")):
-            continue
-        values.add(v)
+        if looks_like_known_value(v):
+            values.add(v)
     return sorted(values)
 
 

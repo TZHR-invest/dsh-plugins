@@ -12,6 +12,17 @@
 | tarball | `dist/<name>-install.tar.gz` | 装机脚本、其他机器 |
 | 仓库源码 | `packages/<name>/` | 本仓开发 |
 
+**⚠️ 本仓库是 public（`TZHR-invest/dsh-plugins`）⇒ 推送前必跑凭据扫描**：
+
+```bash
+python3 scripts/secret-scan.py --secrets-file ~/.meshdeck-secrets.md   # 非零退出即不可推
+```
+
+值清单（`~/.meshdeck-secrets.md`）只在本地存在，故 CI 只跑形态扫描
+（`.github/workflows/secret-scan.yml`，每次 push/PR 自动跑），**值级反查靠本地这一步补**。
+风险点很具体：各插件 `install.sh` 会往 `cordis.patch.yml` 写 metaso / memory-recall / opencodex
+三把 key —— 一次「把本机 patch 当模板拷进仓库」就会把它们一起公开（历史已逐值 `git log -S` 验过干净）。
+
 **⚠️ 血泪教训（2026-09-11，一次查出 4 处）**：多个修复提交只改了代码、**没升 `version`**，
 而 **npm 不允许覆盖已发布版本** → 仓库修好了，npm 上仍是坏代码。实测三例：
 
