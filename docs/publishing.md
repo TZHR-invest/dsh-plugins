@@ -50,6 +50,8 @@ python3 scripts/secret-scan.py --secrets-file ~/.meshdeck-secrets.md   # 非零�
 | `dsh-mobile-ui` | **0.2.3** | 子代理切换器两处修复：①「个子代理」竖排成 96px 一列 + 被 crumbs 裁到点不开（`[class*=crumbs]` 的 white-space 继承泄漏 + 面包屑空间不足）；②箭头展开后**点不回去**（上游 trigger 无点击逻辑，靠 hover 打开）→ 复用上游键盘路径派发 ArrowDown/Escape。新增两个探针：`tests/mobile-layout-probe.py` 头部组 8 例、`tests/live-probe.py` 真机交互 |
 | `dsh-mobile-ui` | 0.2.2 | 移动端操作行重做（两行排布 / 等高 44px / 权限按钮空白与半截字符等 5 类修复，0.1.2 → 0.2.2） |
 | `dsh-vision-tool` | 0.1.2 | |
+| `dsh-web-search-metaso` | **0.1.4** | 消除**「版本号相同、内容不同」的漂移**：`install.sh` 加了 apiKeyEnv 优先的说明与提示文案却没同提交升版本 ⇒ 仓库与 npm 都是 0.1.3、`install.sh` 内容不一致（内容审计实测 6 一致/1 不同）。补发 0.1.4 后 **7/7 文件 md5 一致**；配套新增 `scripts/audit-npm-drift.sh`（把发布自检从「只比版本号」升级为「拉 tarball 逐文件比对」—— 纯版本号自检对这类漂移完全无感） |
+| `dsh-web-search-metaso` | 0.1.3 | （2026-09-15 补记，发布时未登记）`install.sh` 改为推荐 `apiKeyEnv`、不写明文 `apiKey` |
 | `dsh-web-search-metaso` | 0.1.2 | 修复「切换段漏写 `fetchProvider` → `web_fetch` 全废」 |
 | `dsh-auto-archive` | 0.1.1 | **首次发布**；修复 dsh 0.1.5 `persistence.list()/locate()` 变更致归档静默失效 |
 
@@ -88,6 +90,24 @@ for d in packages/*/; do n=$(basename $d); r=$(node -p "require('./$d/package.js
   m=$(npm view "$(node -p "require('./$d/package.json').name")" version 2>/dev/null || echo 未发布); \
   [ "$r" = "$m" ] && echo "✓ $n $r" || echo "⚠ $n 仓库=$r npm=$m"; done
 ```
+
+**⚠️⚠️ 上面这段只比「版本号」，抓不到最常见的漂移 —— 必须再跑一次内容审计**（2026-09-15 定案）：
+
+```bash
+bash scripts/audit-npm-drift.sh            # 全部包；非零退出 = 有漂移，先补发再说别的
+bash scripts/audit-npm-drift.sh dsh-mobile-ui
+```
+
+它把 npm 上的 tarball 拉下来解包，**逐文件 md5 比对仓库**。为什么非它不可（三类真实故障，
+版本号自检全都无感）：
+
+- 改了 `install.sh` / `client.js` 但**忘了升 version** ⇒ 号一样、npm 上是旧代码；
+- 升了 version 但**忘了重跑 `bash scripts/package.sh`** ⇒ tarball 里的 `package.json` 是旧值；
+- 发布后又在仓库里追改同版本 ⇒ 号一样、两份内容分叉。
+
+**实测抓到的那一例**：`dsh-web-search-metaso` 仓库与 npm **都是 0.1.3**，但 `install.sh`
+内容不同（仓库多了一段 apiKeyEnv 提示）—— 纯版本号自检完全无感，是内容审计揪出来的。
+处置＝升 `0.1.4` + 重打包 + `npm publish` + 重跑本脚本核对（现已 5/5 包逐文件一致）。
 
 **发布后必须核对产物内容**（不要只看 `npm publish` 成功）：
 
