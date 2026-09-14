@@ -1,18 +1,9 @@
-/* [dsh-lan-access] token gate —— 自包含补丁源（v3）。
+/* [dsh-lan-access] token gate —— 自包含补丁源（v2）。
  * 本文件被 patch-webserver.mjs 原样插入到 dsh-host-webserver/lib/index.js，
- * 同时可被独立 import 做单元测试（tests/token-gate.test.mjs）。不要在无补丁的
- * 模块外修改本节函数。
+ * 同时可被独立 import 做单元测试。不要在无补丁的模块外修改本节函数。
  * v2（dsh 0.1.2+ 适配）：浏览器原生凭证通道（cookie / /?token= 启动令牌 URL）
  * 交由 host 的 browserAuth 裁决（需配合 client-connection 补丁把启动令牌固定为
- * lan-access-token）；门卫只拦"完全无凭证"的裸请求。
- * v3（2026-09-14）两处修正：
- *   ① 回环不再短路。v2 的调用点写成 `!lanGateIsLoopback(req) && lanGateRequest(...)`，
- *      本机（Host = localhost / 127.* / ::1）的请求根本不进门卫；而 dsh 自带
- *      browserAuth 只有一句纯文本 401、没有表单，于是"本机用户"成了唯一拿不到
- *      登录页的人（2026-09-14 实测：127.0.0.1 → text/plain 401，局域网 IP → 登录页）。
- *   ② 新增 index-401 兜底 lanGateCatchIndexUnauthorized()：门卫放行后仍可能被
- *      browserAuth 拒（cookie 过期 / 浏览器 cookie 签名密钥轮换过 / 换了 origin 但
- *      残留同名 cookie），v2 会把那句英文 401 直接甩给用户 → 无路可走。 */
+ * lan-access-token）；门卫只拦"完全无凭证"的裸请求。 */
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -45,11 +36,7 @@ export function lanGateEquals(got, want) {
 	return timingSafeEqual(g, w);
 }
 
-/**
- * 请求是否来自本机回环（localhost / 127.* / ::1）。
- * v3 起 HTTP 请求不再用它豁免（回环也要能拿到登录页）；仅 WebSocket 握手仍按此
- * 放行——握手无法渲染表单，凭证由浏览器 cookie 承担。
- */
+/** 请求是否来自本机回环（localhost / 127.* / ::1）——回环豁免令牌。 */
 export function lanGateIsLoopback(req) {
 	try {
 		const host = new URL("http://" + (req.headers.host || "")).hostname;
@@ -98,6 +85,7 @@ export function lanGateCookie() {
 	return LAN_GATE_COOKIE + "=" + encodeURIComponent(token) + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=" + LAN_GATE_COOKIE_MAX_AGE;
 }
 
+/** 内联登录页（无任何外部资源依赖，深色）。hasError 时展示错误提示。 */
 /** 内联登录页（无任何外部资源依赖，深色）。hasError 时展示错误提示。 */
 export function lanGatePage(hasError) {
 	const page = [
@@ -167,7 +155,7 @@ export function lanGateHandleAuth(req, res) {
 }
 
 /**
- * 统一门卫入口（v3 起回环请求也走这里）。返回 true 表示本函数已处理完响应；
+ * 非回环请求的统一门卫入口。返回 true 表示本函数已处理完响应；
  * 返回 false 表示授权通过、放行后续路由。query/header 通道通过时顺带种 Cookie。
  */
 export function lanGateRequest(req, res) {
@@ -198,46 +186,4 @@ export function lanGateRequest(req, res) {
 		res.setHeader("set-cookie", lanGateCookie());
 	}
 	return false;
-}
-
-/** index 路径：dist 根（`/`）与显式 index.html。 */
-const LAN_GATE_INDEX_PATHS = new Set(["/", "/index.html"]);
-
-/**
- * v3：把 index 路径上 browserAuth 的 401 换成登录页，就地包装 res 的
- * writeHead/end（只劫持 401，其余状态码与路径一律透传）。
- *
- * 为什么需要：`lanGateAuthorized()` 只认自家 `dsh_lan_token`，看不到 host
- * browserAuth 的签名 cookie 是否还有效——只要请求带了任意 cookie 它就放行，
- * 随后 browserAuth 用一句纯文本 401 拒绝（cookie 过期 / 浏览器 cookie 签名密钥
- * 轮换过 / 换了 origin 但残留同名 cookie），用户便再无入口。这里保持 401 语义与
- * 状态码不变，只把响应体换成同一张登录页，让用户能重新输入令牌。
- *
- * @param req - 传入的 index 请求（仅 GET / HEAD 生效）。
- * @param res - 该请求的响应对象；命中时其 writeHead/end 被就地包装。
- */
-export function lanGateCatchIndexUnauthorized(req, res) {
-	if (req.method !== "GET" && req.method !== "HEAD") return;
-	const pathname = new URL(req.url || "/", "http://x").pathname;
-	if (!LAN_GATE_INDEX_PATHS.has(pathname)) return;
-	const writeHead = res.writeHead;
-	const end = res.end;
-	let rejected = false;
-	res.writeHead = function (status, ...rest) {
-		if (status === 401) {
-			/* 吞掉 browserAuth 的 401 头，等 end 时整段换成登录页。 */
-			rejected = true;
-			return this;
-		}
-		return writeHead.apply(this, [status, ...rest]);
-	};
-	res.end = function (chunk, encoding, callback) {
-		if (!rejected) return end.apply(this, [chunk, encoding, callback]);
-		rejected = false;
-		res.writeHead = writeHead;
-		res.end = end;
-		const page = lanGatePage(false);
-		writeHead.call(this, 401, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
-		return req.method === "HEAD" ? end.call(this) : end.call(this, page);
-	};
 }

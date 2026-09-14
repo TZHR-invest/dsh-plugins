@@ -13,7 +13,8 @@
 #   3. 访问令牌           -> ~/.dsh/lan-access-token（升级不丢；缺失时自动重新生成）
 #   4. 特权围栏放行        -> node_modules 一行补丁（会被升级覆盖，本脚本重打）
 #   5. 设置持久化放行      -> node_modules 一行补丁（会被升级覆盖，本脚本重打）
-#   6. 令牌门卫            -> dsh-host-webserver 入口补丁（会被升级覆盖，本脚本重打）
+#   6. 令牌门卫            -> dsh-host-webserver 入口补丁 v3（会被升级覆盖，本脚本重打；
+#                            含回环登录页 + index-401 兜底）
 set -u
 
 MODE="${1:-apply}"
@@ -269,14 +270,15 @@ FW="$ROOT/node_modules/@deepseek-ai/dsh-host-webserver/lib/index.js"
 if [ ! -f "$SRC/patch-webserver.mjs" ]; then
   echo "  [缺失] $SRC/patch-webserver.mjs（插件源码不完整，请重新安装 dsh-lan-gateway）"
 elif [ "$MODE" = "--check" ]; then
-  if node "$SRC/patch-webserver.mjs" "$FW" --check; then
-    echo "  [已有] webserver 令牌门卫"
-  else
-    echo "  [缺失] webserver 令牌门卫"
-  fi
+  node "$SRC/patch-webserver.mjs" "$FW" --check
+  case $? in
+    0) echo "  [已有] webserver 令牌门卫 v3" ;;
+    3) echo "  [旧版] webserver 令牌门卫（运行本脚本即可就地升级 v3）" ;;
+    *) echo "  [缺失] webserver 令牌门卫" ;;
+  esac
 else
   if node "$SRC/patch-webserver.mjs" "$FW"; then
-    echo "  [已打] webserver 令牌门卫（LAN 未授权请求将看到 401 登录页）"
+    echo "  [已完成] webserver 令牌门卫 v3（未授权请求 = 401 登录页，含回环）"
   else
     echo "  [失败] webserver 令牌门卫——请人工处理"
   fi
@@ -360,14 +362,24 @@ if [ "$MODE" = "--restart" ]; then
   IP=$(hostname -I 2>/dev/null | awk '{print $1}')
   TOKEN=""
   [ -f "$DSH/lan-access-token" ] && TOKEN=$(cat "$DSH/lan-access-token")
-  curl -s --noproxy '*' -o /dev/null -w '127.0.0.1:3080 页面（回环豁免，应 200）-> %{http_code}\n' http://127.0.0.1:3080/
+  curl -s --noproxy '*' -o /dev/null -w '127.0.0.1:3080 页面（v3：无凭据应 401 登录页）-> %{http_code}\n' http://127.0.0.1:3080/
+  curl -s --noproxy '*' http://127.0.0.1:3080/ | grep -q '访问验证' \
+    && echo '  回环登录页内容 -> OK（含「访问验证」表单）' \
+    || echo '  [警告] 回环未返回登录页（补丁未生效？）'
   if [ -n "$IP" ]; then
     curl -s --noproxy '*' -o /dev/null -w "$IP:3080 无令牌（应 401 登录页）-> %{http_code}\n" "http://$IP:3080/"
     if [ -n "$TOKEN" ]; then
-      curl -s --noproxy '*' -o /dev/null -w "$IP:3080 带令牌（应 200）-> %{http_code}\n" -H "X-DSH-Token: $TOKEN" "http://$IP:3080/"
+      curl -s --noproxy '*' -o /dev/null -w "$IP:3080 ?token=（应 303 + 种 Cookie）-> %{http_code}\n" "http://$IP:3080/?token=$TOKEN"
       curl -s --noproxy '*' -o /dev/null -w 'LAN Host settings.describe（带令牌，应非 403）-> %{http_code}\n' -H "Host: $IP:3080" -H "X-DSH-Token: $TOKEN" -X POST http://127.0.0.1:3080/api/settings.describe
     fi
   fi
-  curl -s --noproxy '*' -o /dev/null -w '插件 bundle（应 200）-> %{http_code}\n' http://127.0.0.1:3080/plugins/dsh-lan-gateway/client.js
+  # 端到端：用 ?token= 换 host browserAuth cookie，再取首页（旧的 /plugins/<id>/client.js
+  # 检查在 dsh 0.1.5 已失效——客户端插件走 /plugins/??a,b&rev= 聚合 URL，单包路径必 404）。
+  COOKIE=$(curl -s --noproxy '*' -D - -o /dev/null "http://127.0.0.1:3080/?token=$TOKEN" | grep -i '^set-cookie' | head -1 | sed 's/^[Ss]et-[Cc]ookie: //' | cut -d';' -f1)
+  if [ -n "$COOKIE" ]; then
+    curl -s --noproxy '*' -o /dev/null -w '应用首页（带 browserAuth cookie，应 200）-> %{http_code}\n' -H "Cookie: $COOKIE" http://127.0.0.1:3080/
+  else
+    echo '  [警告] 未换到 browserAuth cookie（token 与运行实例不一致？）'
+  fi
   echo "== 完成 =="
 fi

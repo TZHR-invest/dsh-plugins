@@ -10,15 +10,16 @@
 # 局域网访问由六层组成：
 #   1. webserver 绑定 0.0.0.0    -> ~/.dsh/cordis.patch.yml（用户配置层）
 #   2. crypto.randomUUID 插件    -> ~/.dsh/plugins/dsh-lan-access/ + profile 安装 + 组合接线
-#   3. 访问令牌                  -> ~/.dsh/lan-access-token（LAN 访问必须持有，回环豁免）
+#   3. 访问令牌                  -> ~/.dsh/lan-access-token（访问必须持有；v3 起回环也要）
 #   4. 特权围栏放行              -> dsh-client-connection 一行补丁（dsh 升级后可能被覆盖，
 #                                  届时重跑本脚本或 ~/.dsh/reapply-lan-patches.sh 即可）
 #   5. 设置持久化放行            -> dsh-client-ui-settings 一行补丁
-#   6. 令牌门卫                  -> dsh-host-webserver 入口补丁（401 登录页 + WebSocket 拦截）
+#   6. 令牌门卫                  -> dsh-host-webserver 入口补丁 v3（401 登录页，含回环 +
+#                                   index-401 兜底 + WebSocket 拦截）
 #
 # 安全说明：0.0.0.0 会让局域网内任何设备可访问本 GUI（可驱动 agent 执行命令）。
-# 本包为其增加访问令牌验证：非本机（回环）请求必须携带令牌
-# （Cookie / ?token= / X-DSH-Token / 登录页表单），未授权一律 401。
+# 本包为其增加访问令牌验证：所有浏览器/HTTP 请求必须携带令牌
+# （Cookie / ?token= / X-DSH-Token / 登录页表单），未授权一律 401 登录页。
 # 令牌经明文 HTTP 传输，防的是“未授权设备访问”，不防局域网内嗅探；
 # 如需防窃听请再套一层 HTTPS 反向代理。仅限可信局域网使用，勿暴露公网。
 set -u
@@ -42,8 +43,8 @@ echo "== 0/6 前置检查 =="
 if [ ! -f "$PLUGIN/package.json" ] || [ ! -f "$PLUGIN/client.js" ]; then
   echo "  错误：安装包缺少 dsh-lan-gateway/ 插件源码（$PLUGIN 不完整）"; exit 1
 fi
-if [ ! -f "$PLUGIN/token-gate.js" ] || [ ! -f "$PLUGIN/patch-webserver.mjs" ]; then
-  echo "  错误：安装包缺少令牌门卫补丁源（token-gate.js / patch-webserver.mjs）"; exit 1
+if [ ! -f "$PLUGIN/token-gate.js" ] || [ ! -f "$PLUGIN/token-gate.v2.js" ] || [ ! -f "$PLUGIN/patch-webserver.mjs" ]; then
+  echo "  错误：安装包缺少令牌门卫补丁源（token-gate.js / token-gate.v2.js / patch-webserver.mjs）"; exit 1
 fi
 echo "  [OK] 插件源码完整"
 
@@ -282,7 +283,8 @@ else
     echo "    - 浏览器首次访问会看到登录页，粘贴令牌即可进入"
     echo "    - curl -H \"X-DSH-Token: $TOKEN\" http://<IP>:3080/"
     echo "    - 浏览器直接访问 http://<IP>:3080/?token=$TOKEN"
-    echo "  回环（localhost/127.0.0.1）访问豁免，无需令牌。"
+    echo "  v3 起回环（localhost/127.0.0.1）同样出登录页——本机也需先过令牌。"
+    echo "  注意：出现登录页 = 服务正常（HTTP 401 属预期，不是故障）。"
   fi
 fi
 
@@ -353,14 +355,15 @@ else
     echo "  [缺失] $FW（该版本可能已无此文件，请人工确认）"
     FAIL=1
   elif [ "$MODE" = "--check" ]; then
-    if node "$PLUGIN/patch-webserver.mjs" "$FW" --check; then
-      echo "  [已有] webserver 令牌门卫"
-    else
-      echo "  [缺失] webserver 令牌门卫"
-    fi
+    node "$PLUGIN/patch-webserver.mjs" "$FW" --check
+    case $? in
+      0) echo "  [已有] webserver 令牌门卫 v3" ;;
+      3) echo "  [旧版] webserver 令牌门卫（补丁脚本报告为旧版，运行 bash install.sh 即可就地升级 v3）" ;;
+      *) echo "  [缺失] webserver 令牌门卫" ;;
+    esac
   else
     if node "$PLUGIN/patch-webserver.mjs" "$FW"; then
-      echo "  [已打] webserver 令牌门卫（LAN 未授权请求将看到 401 登录页）"
+      echo "  [已完成] webserver 令牌门卫 v3（未授权请求 = 401 登录页，含回环）"
     else
       echo "  [失败] webserver 令牌门卫——请人工处理"
       FAIL=1
@@ -430,15 +433,25 @@ if [ "$MODE" = "--restart" ]; then
     IP=$(hostname -I 2>/dev/null | awk '{print $1}')
     TOKEN=""
     [ -f "$DSH/lan-access-token" ] && TOKEN=$(cat "$DSH/lan-access-token")
-    curl -s --noproxy '*' -o /dev/null -w '127.0.0.1:3080 页面（回环豁免，应 200）-> %{http_code}\n' http://127.0.0.1:3080/
+    curl -s --noproxy '*' -o /dev/null -w '127.0.0.1:3080 页面（v3：无凭据应 401 登录页）-> %{http_code}\n' http://127.0.0.1:3080/
+    curl -s --noproxy '*' http://127.0.0.1:3080/ | grep -q '访问验证' \
+      && echo '  回环登录页内容 -> OK（含「访问验证」表单）' \
+      || echo '  [警告] 回环未返回登录页（补丁未生效？）'
     if [ -n "$IP" ]; then
       curl -s --noproxy '*' -o /dev/null -w "$IP:3080 无令牌（应 401 登录页）-> %{http_code}\n" "http://$IP:3080/"
       if [ -n "$TOKEN" ]; then
-        curl -s --noproxy '*' -o /dev/null -w "$IP:3080 带令牌（应 200）-> %{http_code}\n" -H "X-DSH-Token: $TOKEN" "http://$IP:3080/"
+        curl -s --noproxy '*' -o /dev/null -w "$IP:3080 ?token=（应 303 + 种 Cookie）-> %{http_code}\n" "http://$IP:3080/?token=$TOKEN"
         curl -s --noproxy '*' -o /dev/null -w 'LAN Host settings.describe（带令牌，应非 403）-> %{http_code}\n' -H "Host: $IP:3080" -H "X-DSH-Token: $TOKEN" -X POST http://127.0.0.1:3080/api/settings.describe
       fi
     fi
-    curl -s --noproxy '*' -o /dev/null -w '插件 bundle（应 200）-> %{http_code}\n' http://127.0.0.1:3080/plugins/dsh-lan-gateway/client.js
+    # 端到端：用 ?token= 换 host browserAuth cookie，再取首页（旧的
+    # /plugins/<id>/client.js 检查在 dsh 0.1.5 已失效——客户端插件走 /plugins/??a,b&rev= 聚合 URL）。
+    COOKIE=$(curl -s --noproxy '*' -D - -o /dev/null "http://127.0.0.1:3080/?token=$TOKEN" | grep -i '^set-cookie' | head -1 | sed 's/^[Ss]et-[Cc]ookie: //' | cut -d';' -f1)
+    if [ -n "$COOKIE" ]; then
+      curl -s --noproxy '*' -o /dev/null -w '应用首页（带 browserAuth cookie，应 200）-> %{http_code}\n' -H "Cookie: $COOKIE" http://127.0.0.1:3080/
+    else
+      echo '  [警告] 未换到 browserAuth cookie（token 与运行实例不一致？）'
+    fi
     echo "== 完成 =="
   else
     echo "  无法定位 dsh 可执行文件，请手动重启 dsh web"

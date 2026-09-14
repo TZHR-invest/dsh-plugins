@@ -18,6 +18,8 @@ for pkg in "$REPO"/packages/*/; do
   [ -f "$pkg/client.js" ] && cp "$pkg/client.js" "$OUT/$NAME/"
   [ -f "$pkg/cordis.patch.yml" ] && cp "$pkg/cordis.patch.yml" "$OUT/$NAME/"
   [ -f "$pkg/token-gate.js" ] && cp "$pkg/token-gate.js" "$OUT/$NAME/"
+  # v2 门卫源码留档：patch-webserver.mjs 就地升级 v2→v3 的匹配基准，缺它则补丁脚本启动即报错
+  [ -f "$pkg/token-gate.v2.js" ] && cp "$pkg/token-gate.v2.js" "$OUT/$NAME/"
   [ -f "$pkg/patch-webserver.mjs" ] && cp "$pkg/patch-webserver.mjs" "$OUT/$NAME/"
   [ -f "$pkg/install.sh" ] && cp "$pkg/install.sh" "$OUT/"
   [ -f "$pkg/reapply-lan-patches.sh" ] && cp "$pkg/reapply-lan-patches.sh" "$OUT/"
