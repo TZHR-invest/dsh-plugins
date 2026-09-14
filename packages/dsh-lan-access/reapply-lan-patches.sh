@@ -306,6 +306,30 @@ else
   [ -f "$FC" ] && node --check "$FC" 2>/dev/null && echo "  语法 OK"
 fi
 
+# ── 7/7 websocket 响应压缩补丁（permessage-deflate，2026-09-14 新增）──────────
+# 为什么：WS 帧**不走 HTTP 的 gzip** —— 打开历史会话时服务端一次性回一帧
+#   0.8–1.2 MB 的 JSON（消息正文/工具输出/thinking 签名），手机那条 ~10 KB/s
+#   链路上要 ~120 秒，前端表现为"一直显示正在加载"。开压缩实测 1.20 MB → 255 KB
+#   （4.80x）；ws 默认 threshold=1024，小于 1 KB 的小帧（事件流）不压缩。
+# ⚠️ 生效需**重启该机 dsh web**（WebSocketServer 在进程启动时构造）。
+echo "== 7/7 websocket 响应压缩补丁 =="
+FG="$ROOT/node_modules/@deepseek-ai/dsh-api-gateway"
+if [ ! -f "$SRC/patch-ws-deflate.mjs" ]; then
+  echo "  [缺失] $SRC/patch-ws-deflate.mjs（插件源码不完整，请更新 dsh-lan-access）"
+elif [ "$MODE" = "--check" ]; then
+  if node "$SRC/patch-ws-deflate.mjs" "$FG" --check; then
+    echo "  [已有] websocket permessage-deflate（重启 dsh web 后才生效）"
+  else
+    echo "  [缺失] websocket permessage-deflate（慢链路上打开历史会话要多传约 4 倍字节）"
+  fi
+else
+  if node "$SRC/patch-ws-deflate.mjs" "$FG"; then
+    echo "  [已完成] websocket permessage-deflate（重启该机 dsh web 后生效）"
+  else
+    echo "  [失败] websocket 响应压缩补丁——请人工处理"
+  fi
+fi
+
 if [ "$MODE" = "--check" ]; then
   echo "== 检查完成（未改动任何文件）=="
   exit 0
