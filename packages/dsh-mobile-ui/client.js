@@ -272,8 +272,14 @@ window.__ModuleLoader__.load({
 			   可用、靠左时左溢出；fixed 与容器位置无关（实测两种场景都在视口内）。
 			   ⚠️ hash 前缀（QsffPG_ / _1nxmc_）会随 dsh 升级漂移、失效是静默的（退回溢出），
 			   升级后跑 tests/live-probe.py 复核（已覆盖后台任务菜单）。 */
-			"  body.dsh-mobile-ui [class*=QsffPG_menu],body.dsh-mobile-ui [role=menu][class*=_list_1nxmc_]{position:fixed !important;left:8px !important;right:8px !important;width:auto !important;min-width:0 !important;max-width:none !important;max-height:calc(100vh - 130px) !important;overflow:auto !important;top:calc(var(--dsh-mobile-popover-top,42px) + env(safe-area-inset-top,0px)) !important}",
-			"  body.dsh-mobile-ui [role=menu][class*=_list_1nxmc_]{--dsh-mobile-popover-top:76px}",
+			/* ⚠️ popover 的 top 必须落在**触发按钮下方**：菜单弹出后若盖住按钮本身，
+			   用户再点一下（想关掉/重开）时点击落在菜单上 —— 体感就是「点了没反应」
+			   （2026-09-14 用户报「三个点按钮点击没反应」：实测命中率只有 2/6，
+			   菜单 [8,76,374,42] 正好压在 tabs 行的按钮 80..106 上）。
+			   · QsffPG：触发按钮在 header 第二行 42..70 ⇒ top 74
+			   · _1nxmc_（「更多操作」）：触发按钮在 tabs 行 80..106 ⇒ top 122 */
+			"  body.dsh-mobile-ui [class*=QsffPG_menu],body.dsh-mobile-ui [role=menu][class*=_list_1nxmc_]{position:fixed !important;left:8px !important;right:8px !important;width:auto !important;min-width:0 !important;max-width:none !important;max-height:calc(100vh - 150px) !important;overflow:auto !important;top:calc(var(--dsh-mobile-popover-top,74px) + env(safe-area-inset-top,0px)) !important}",
+			"  body.dsh-mobile-ui [role=menu][class*=_list_1nxmc_]{--dsh-mobile-popover-top:122px}",
 			/* ── 手机端 header 瘦身 + 正文占比（2026-09-14，用户反馈「标题栏三行有点乱 / 正文显得窄」）──
 			   实测 390px：header 138px（titleRow 三行）＋ 输入区 272px ⇒ 正文只剩 434px（占屏 51%）。
 			   三行里第三行是「终端打开 / 选择打开方式 / 更多操作 / 打开右侧边栏」——前两个点了是在
@@ -305,11 +311,11 @@ window.__ModuleLoader__.load({
 			   用户可能不知道从哪恢复；提示跟随内容，长会话滚到底才看到，不打扰阅读） */
 			"  body.dsh-mobile-ui.dsh-mobile-composer-hidden [class*=scrollBody]::after{content:'输入框已折叠 · 点标签行右侧 ▤ 图标展开';display:block;text-align:center;padding:14px 0 4px;font-size:11px;line-height:1.4;color:var(--dsw-alias-label-caption,rgba(255,255,255,.35))}",
 			/* tabs 行做成「标签靠左 / 工具靠右」 */
-			"  body.dsh-mobile-ui [class*=wSkVaW_tabs]{align-items:center !important}",
-			"  body.dsh-mobile-ui #dsh-mobile-tab-tools{margin-left:auto !important;display:inline-flex !important;align-items:center !important;gap:6px !important;flex:0 0 auto !important}",
-			"  body.dsh-mobile-ui #dsh-mobile-tab-tools button{width:30px !important;height:26px !important;min-width:30px !important;display:inline-flex !important;align-items:center !important;justify-content:center !important;padding:0 !important;border:none !important;border-radius:8px !important;background:transparent !important;color:var(--dsw-alias-label-secondary,rgba(255,255,255,.7)) !important;cursor:pointer !important}",
+			"  body.dsh-mobile-ui [class*=wSkVaW_tabs]{align-items:center !important;min-height:34px !important}",
+			"  body.dsh-mobile-ui #dsh-mobile-tab-tools{margin-left:auto !important;display:inline-flex !important;align-items:center !important;gap:8px !important;flex:0 0 auto !important}",
+			"  body.dsh-mobile-ui #dsh-mobile-tab-tools button{width:36px !important;height:34px !important;min-width:36px !important;display:inline-flex !important;align-items:center !important;justify-content:center !important;padding:0 !important;border:none !important;border-radius:8px !important;background:transparent !important;color:var(--dsw-alias-label-secondary,rgba(255,255,255,.7)) !important;cursor:pointer !important}",
 			"  body.dsh-mobile-ui #dsh-mobile-tab-tools button:active{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08)) !important}",
-			"  body.dsh-mobile-ui #dsh-mobile-tab-tools svg{width:17px !important;height:17px !important;fill:none !important;stroke:currentColor !important;stroke-width:1.8 !important;stroke-linecap:round !important;stroke-linejoin:round !important}",
+			"  body.dsh-mobile-ui #dsh-mobile-tab-tools svg{width:18px !important;height:18px !important;fill:none !important;stroke:currentColor !important;stroke-width:1.8 !important;stroke-linecap:round !important;stroke-linejoin:round !important}",
 			/* ── 折叠输入区（阅读模式）：省下 composerSeat 的 ~272px，全部让给正文 ──
 			   触发方式：tabs 行的键盘按钮（状态存 localStorage，刷新后保持）。
 			   ⚠️ 提问卡片（ask_user_question）就渲染在 composerSeat 里 ⇒ 折叠状态下若检测到卡片，
@@ -558,10 +564,22 @@ window.__ModuleLoader__.load({
 							more.id = "dsh-mobile-more-proxy";
 							more.setAttribute("aria-label", "更多操作");
 							more.innerHTML = "<svg viewBox='0 0 24 24'><circle cx='5' cy='12' r='1.7'/><circle cx='12' cy='12' r='1.7'/><circle cx='19' cy='12' r='1.7'/></svg>";
+							/* ⚠️ 竞态：上游的「点外面就关」监听的是 **pointerdown**（document 冒泡阶段），
+							   而我们的转发在 **click**（按钮上）。如果菜单本来开着，一次 tap 会：
+							     pointerdown → 上游关掉菜单 → click → 我们又叫开
+							   净效果「点了没反应」（2026-09-14 用户报「三个点按钮点击没反应」，
+							   实测命中率 2/6）。修法：在按钮上的 pointerdown（比 document 早）记下当前是否开着，
+							   开着就什么都不做 —— 交给上游关掉，真正的 toggle。 */
+							more.addEventListener("pointerdown", function () {
+								try {
+									more.__menuWasOpen = !!document.querySelector("[role=menu][class*=_list_1nxmc_]");
+								} catch (err) { more.__menuWasOpen = false; }
+							}, true);
 							more.addEventListener("click", function (e) {
 								try {
 									e.preventDefault();
 									e.stopPropagation();
+									if (more.__menuWasOpen) { more.__menuWasOpen = false; return; }
 									var up = document.querySelector("button[class*=nL4_yW_moreButton]");
 									if (up) up.click();
 								} catch (err) { /* 静默 */ }

@@ -214,6 +214,27 @@ def run(args) -> int:
                 if back:
                     fails.append("再次点击没能恢复输入区")
 
+            # ③d 工具按钮必须真的能用：⋯ 代理按钮开→关一次就翻状态
+            #     （曾因「上游 pointerdown 先关 / 我们的 click 又开」的竞态，命中率只有 2/6 ——
+            #      用户报「三个点按钮点击没反应」；折叠按钮也曾因 30×26 目标过小被报「不灵敏」）
+            menus_js = "() => document.querySelectorAll('[role=menu][class*=_list_1nxmc_]').length"
+            mp = page.evaluate("""() => { const b = document.getElementById('dsh-mobile-more-proxy'); if (!b) return null;
+                const r = b.getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; }""")
+            if mp:
+                seq = []
+                for _ in range(2):
+                    page.touchscreen.tap(mp[0], mp[1])
+                    page.wait_for_timeout(1000)
+                    seq.append(page.evaluate(menus_js))
+                print(f"  [⋯ 代理按钮] 开合序列={seq}（期望 [1,0]）")
+                if seq != [1, 0]:
+                    fails.append(f"「更多操作」代理按钮不能开合：{seq}（上游 pointerdown 与转发 click 的竞态又回来了？）")
+                # 按钮尺寸：触摸目标不得小于 32px（插件规范 44，实测 30×26 时用户报"不灵敏"）
+                size = page.evaluate("""() => { const b = document.getElementById('dsh-mobile-more-proxy');
+                    if (!b) return null; const r = b.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; }""")
+                if size and (size[0] < 32 or size[1] < 30):
+                    fails.append(f"工具按钮触摸目标过小：{size}")
+
             # ④ 菜单行可进入子代理（面包屑应变成两段）
             page.touchscreen.tap(sw["x"], sw["y"])
             page.wait_for_timeout(800)
