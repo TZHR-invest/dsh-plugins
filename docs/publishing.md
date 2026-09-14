@@ -30,7 +30,8 @@
 | `dsh-lan-gateway` | **0.2.5** | WS 响应压缩（permessage-deflate，慢链路 4.80x：1.20MB→256KB；须重启 dsh web）+ 部署/恢复脚本三处静默缺口修复（install/reapply 在 tarball 根目录、写入式文件清单漏补丁源、reapply 安装根定位在 office_64g 失效）。**2026-09-14 已发 npm 并逐文件 md5 核对：13/13 与仓库一致** |
 | `dsh-lan-gateway` | 0.2.4 | 令牌门卫 v3：回环不再短路（本机 `127.0.0.1` 也出登录页 —— v2 下本机只能看到 host browserAuth 的纯文本 401）+ index-401 兜底（cookie 过期 / 签名密钥轮换时同样换登录页）；补 16 例单测 + `token-gate.v2.js` 留档（就地升级匹配基准） |
 | `dsh-lan-gateway` | 0.2.3 | 安装器不再静默关闭响应压缩（loader patch 整体替换 config；慢链路 11.19MB→3.95MB） |
-| `dsh-mobile-ui` | **0.2.2** | 移动端操作行重做（两行排布 / 等高 44px / 权限按钮空白与半截字符等 5 类修复，0.1.2 → 0.2.2） |
+| `dsh-mobile-ui` | **0.2.3** | 子代理切换器两处修复：①「个子代理」竖排成 96px 一列 + 被 crumbs 裁到点不开（`[class*=crumbs]` 的 white-space 继承泄漏 + 面包屑空间不足）；②箭头展开后**点不回去**（上游 trigger 无点击逻辑，靠 hover 打开）→ 复用上游键盘路径派发 ArrowDown/Escape。新增两个探针：`tests/mobile-layout-probe.py` 头部组 8 例、`tests/live-probe.py` 真机交互 |
+| `dsh-mobile-ui` | 0.2.2 | 移动端操作行重做（两行排布 / 等高 44px / 权限按钮空白与半截字符等 5 类修复，0.1.2 → 0.2.2） |
 | `dsh-vision-tool` | 0.1.2 | |
 | `dsh-web-search-metaso` | 0.1.2 | 修复「切换段漏写 `fetchProvider` → `web_fetch` 全废」 |
 | `dsh-auto-archive` | 0.1.1 | **首次发布**；修复 dsh 0.1.5 `persistence.list()/locate()` 变更致归档静默失效 |
