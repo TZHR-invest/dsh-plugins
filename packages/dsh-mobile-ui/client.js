@@ -355,6 +355,52 @@ window.__ModuleLoader__.load({
 				var qaOpen = false;         /* 提问卡片打开标志（卡片浮层打开时隐藏右上角菜单，防遮挡标题） */
 				var savedGrid = null;   /* 窄屏前的 frame 原始 grid（宽屏恢复用） */
 
+				/* ── 子代理切换器「点一下开、再点收回」补丁（2026-09-14）─────────────
+				   上游 dsh-client-ui-subagent 的切换器在**触摸设备上只能开、不能收**：
+				     · trigger 的 onClick 是条件绑定 ——
+				       onClick: openTitle === void 0 ? void 0 : () => {…}，
+				       会话头部这个纯切换器没有 openTitle ⇒ 按钮**本体没有任何点击逻辑**；
+				     · “打开”实际靠容器 rootRef 的 onMouseEnter → scheduleHoverOpen(150ms)，
+				       手机 tap 会合成**一次** mouseenter，所以第一下能开；
+				     · 再点同一处不再产生 mouseenter（指针从未离开），onClick 又是 undefined
+				       ⇒ 既关不掉也开不回来，用户只能点空白或按 Esc 才收得回去
+				       （用户报障：“点击箭头展开后再点击不能收回”）。
+				   上游自带两条键盘路径可复用（不改它的状态机，只喂官方事件）：
+				     · trigger onKeyDown 的 ArrowDown → changeOpen(true)（打开）
+				     · rootRef onKeyDown → navigate 的 Escape → changeOpen(false, true)（关闭+回焦）
+				   ⚠️ 只在移动端（mq.matches）补：桌面 hover 开合语义完整，不该被改写。
+				   ⚠️ 展开状态每次从 DOM 的 aria-expanded 现读（React 渲染的实时值），不缓存。
+				   ⚠️ 捕获阶段拦截并吞掉 click：否则会冒泡到 React root，触发上游（可能有 openTitle
+				      的变体）自己的 onClick 逻辑。 */
+				function onSwitcherToggle(event) {
+					try {
+						if (!mq.matches) return;
+						var target = event.target;
+						var btn = target && target.closest
+							? target.closest("button[class*=ZKlsPq_trigger]") : null;
+						if (!btn) return;
+						var key = btn.getAttribute("aria-expanded") === "true" ? "Escape" : "ArrowDown";
+						event.stopPropagation();
+						if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+						event.preventDefault();
+						var ev;
+						try {
+							ev = new KeyboardEvent("keydown", { key: key, bubbles: true, cancelable: true });
+						} catch (e) {
+							/* 旧内核（微信 X5 等）无 KeyboardEvent 构造器：退回 initEvent + 手赋 key */
+							ev = document.createEvent("Event");
+							ev.initEvent("keydown", true, true);
+							ev.key = key;
+						}
+						btn.dispatchEvent(ev);
+					} catch (e) { /* 补丁失败静默降级（点击仍走上游原逻辑） */ }
+				}
+				/* 幂等绑定：本函数只依赖 DOM 与 matchMedia，无闭包状态，重挂载无需解绑 */
+				if (!document.__dshMobileSwitcherToggle) {
+					document.__dshMobileSwitcherToggle = true;
+					document.addEventListener("click", onSwitcherToggle, true);
+				}
+
 				/* 主布局 frame：display:grid 的顶层容器（CSS 生效前 3 列 / 生效后 1 列均可） */
 				function findFrame() {
 					var els = document.querySelectorAll("[class*=frame]");
