@@ -211,8 +211,47 @@ window.__ModuleLoader__.load({
 			"  body.dsh-mobile-ui [class*=avatar]{width:28px !important;height:28px !important}",
 			/* AI 正文与工具行视觉分隔 */
 			"  body.dsh-mobile-ui [class*=markdown]{margin-top:6px}",
-			/* 头部标题允许换行（防截断） */
-			"  body.dsh-mobile-ui [class*=header] [class*=title],body.dsh-mobile-ui [class*=crumbs]{white-space:normal;overflow-wrap:anywhere}",
+			/* 头部标题允许换行（防截断）。
+			   ⚠️ 2026-09-14 修复（第 5 处词根选择器泄漏）：原规则同时给 [class*=crumbs] 设了
+			   white-space:normal + overflow-wrap:anywhere —— **两者都是继承属性**，而上游
+			   .wSkVaW_crumbs 自身是 nowrap（面包屑内所有元素都靠这条继承保持单行），
+			   于是 crumbs 内**没有自己 white-space 规则**的元素被连带改成逐字换行：
+			   子代理切换器 ZKlsPq_root 里的无类名文本 span（"N 个子代理"）实测
+			   从 80×28 变成 48×96 的一列竖排，header 被撑到 142px（用户截图实证）。
+			   crumbs 里的标题按钮 .wSkVaW_crumb 自身就是 nowrap + ellipsis，
+			   容器规则对它的"防截断"毫无作用（实测 ws 仍为 nowrap）
+			   ⇒ [class*=crumbs] 这半条只有副作用，删除；header 标题照旧。 */
+			"  body.dsh-mobile-ui [class*=header] [class*=title]{white-space:normal;overflow-wrap:anywhere}",
+			/* ── 会话头部「面包屑 + 子代理切换器」在窄屏被裁（2026-09-14 修复）──────
+			   上游把「面包屑(会话标题 + 子代理切换器) + 4 个操作按钮」全塞在 titleRow 一行：
+			   390px 实测 titleRow 342px，titleCluster 只分到 214px，其中 headerActions
+			   固定占 68px ⇒ crumbs 只剩 136px，而内容需要 标题(最多 220) + 切换器(94) ≈ 318px。
+			   两者按 flex 比例收缩后总宽仍 189px > 136px，超出部分被 crumbs 的
+			   overflow:hidden 裁掉 —— 手机上显示成「[方块] 8」，“个子代理”四个字全不见；
+			   更糟的是被裁区域上的点击落在 headerActions 的按钮上（实测 elementFromPoint
+			   命中的是“标准模式”），用户点切换器**打不开子代理列表**。
+			   修法三件事（缺一不可）：
+			     ① crumbs 内的切换器 flex:none —— 空间不足时让**标题**先收缩（标题自带
+			        ellipsis），而不是两者一起被裁掉尾部；
+			     ② titleCluster 独占整行（flex-basis:100%）+ titleRow 允许换行 —— 把 4 个
+			        操作按钮（终端/打开方式/更多/右侧边栏）挤到第二行，面包屑拿到整行宽；
+			     ③ 实测结果：390px 标题 152px + 切换器 94px 完整可点、菜单能打开；
+			        360/320/414px 同样成立（标题 122/82/176px，切换器恒为 94px 完整）；
+			        header 76 → 106px（+30px，换信息完整与可点，hero 页无 titleRow 不受影响）。
+			   ⚠️ 别改用 crumbs/titleCluster 的 min-width:max-content：实测会把宽度锁死成
+			   332px，320px 视口下切换器直接出屏（inView=false）。
+			   ⚠️ 两个 hash 前缀（wSkVaW_ / ZKlsPq_）会随 dsh 升级漂移，失效是静默的
+			   （退回“切换器被裁”），升级后跑 tests/mobile-layout-probe.py 的 subagent 段复核。 */
+			"  body.dsh-mobile-ui [class*=wSkVaW_crumbSeg] [class*=ZKlsPq_root]{flex:0 0 auto !important}",
+			"  body.dsh-mobile-ui [class*=wSkVaW_titleRow]{flex-wrap:wrap !important;row-gap:4px !important}",
+			"  body.dsh-mobile-ui [class*=wSkVaW_titleCluster]{flex:1 1 100% !important}",
+			/* 极窄屏（≤360px）面包屑只留当前段：子代理会话页的面包屑是
+			   「父会话 / 子代理名 / N 个子代理」，320px 实测当前段标题被挤到 36px
+			   （只剩两三个字符，探针会判 ❌），隐藏父级段与分隔符后回到 96px。
+			   手机上回父会话另有入口（子代理菜单），可读性优先级更高。 */
+			"  @media (max-width:360px){",
+			"    body.dsh-mobile-ui [class*=wSkVaW_crumbSeg] > [class*=wSkVaW_crumb]:not([class*=wSkVaW_crumbCurrent]),body.dsh-mobile-ui [class*=wSkVaW_crumbSeg] > [class*=wSkVaW_crumbSep]{display:none !important}",
+			"  }",
 			/* 输入框聚焦反馈 */
 			"  body.dsh-mobile-ui textarea:focus,body.dsh-mobile-ui [class*=input]:focus-within{outline:none;box-shadow:0 0 0 2px var(--dsw-alias-brand-primary,rgba(79,124,255,.45))}",
 			/* 消息流操作按钮（复制/反馈/分享）触摸目标提升。

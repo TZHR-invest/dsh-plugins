@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""dsh-mobile-ui 移动端布局探针：两处可读性/几何回归测试。
+"""dsh-mobile-ui 移动端布局探针：三处可读性/几何回归测试（提问卡片 · 输入区操作行 · 会话头部）。
 
 ## 一、提问卡片（ask_user_question）
 
@@ -28,6 +28,23 @@
 多一个上下文按钮就重叠），肉眼审查 CSS 极难穷举，所以固化成几何测量：
 真实上游 CSS + 真实 DOM 嵌套 + 真实插件代码，断言「任意两个控件都不重叠」。
 
+## 三、会话头部（面包屑 + 子代理切换器）
+
+crumbs 是 `overflow:hidden` 的窄条，里面塞着「会话标题 + 子代理切换器」，插件任何作用在
+header/title/crumbs 上的规则都会在这里静默改变结果（2026-09-14 用户报「子代理 UI 文字显示
+不全 / 上下排列」，一次踩中两个坑）：
+
+    white-space/overflow-wrap 是**继承属性**，crumbs 上游是 nowrap
+    旧插件规则  [class*=crumbs]{white-space:normal;overflow-wrap:anywhere}
+    ⇒ 切换器里那个**无类名**文本 span 继承成 normal → 逐字换行（实测 28px → 96px 竖排一列）
+
+    上游把标题+切换器+4 个操作按钮塞在一行，390px 下 crumbs 只分到 136px
+    ⇒ 标题(最多 220) + 切换器(94) 按比例收缩后被 crumbs 裁掉尾部
+    ⇒ 手机上是「[方块] 8」，"个子代理"看不见；被裁区上的点击还落在 headerActions 上
+      （实测 elementFromPoint 命中"标准模式"）⇒ 点切换器**打不开子代理列表**
+
+断言：切换器完整落在 crumbs 内、单行、中心点真能点到它、与操作区不重叠、按钮不出屏、标题不被压没。
+
 ## 用法
 
     python3 tests/mobile-layout-probe.py                 # 默认测当前安装副本
@@ -35,6 +52,7 @@
     python3 tests/mobile-layout-probe.py --viewport 320x568 --options 12
     python3 tests/mobile-layout-probe.py --only composer  # 只跑操作行
     python3 tests/mobile-layout-probe.py --only qa        # 只跑提问卡片
+    python3 tests/mobile-layout-probe.py --only header    # 只跑会话头部（子代理切换器）
 
 依赖：playwright（python）+ 已安装的 dsh（用于抽取上游 CSS）。退出码非 0 表示回归。
 """
@@ -60,6 +78,8 @@ CONV_CSS_RE = r'const css\$4 = ("(?:[^"\\]|\\.)*");'
 QQ_CSS_RE = r'const css = ("(?:[^"\\]|\\.)*");'
 # 输入区（InputBar）上游 CSS：uV2eYG 词根
 INPUTBAR_CSS_RE = r'const css\$1 = ("(?:[^"\\]|\\.)*");'
+# 子代理切换器上游 CSS：ZKlsPq 词根（在 dsh-client-ui-subagent 里是 css$1）
+SUBAGENT_CSS_RE = r'const css\$1 = ("(?:[^"\\]|\\.)*");'
 
 
 def extract_css(path: pathlib.Path, pattern: str, what: str) -> str:
@@ -460,6 +480,170 @@ def probe_composer(plugin, viewport, with_context, with_effort, workdir,
     }
 
 
+HEADER_MEASURE_JS = """() => {
+  const R = e => { if (!e) return null; const r = e.getBoundingClientRect();
+    return {x: r.x, y: r.y, w: r.width, h: r.height, right: r.right}; };
+  const sw = [...document.querySelectorAll('button[class*=ZKlsPq_trigger]')].pop();
+  const crumbs = document.querySelector('[class*=wSkVaW_crumbs]');
+  // 当前段优先：窄屏下父级段会被插件隐藏（display:none → 宽 0），取它会把标题误判成"被压没"
+  const title = document.querySelector('button[class*=wSkVaW_crumbCurrent]')
+             || document.querySelector('button[class*=wSkVaW_crumb]');
+  const actions = document.querySelector('[class*=wSkVaW_headerActions]');
+  const box = sw ? R(sw) : null;
+  const hit = [];
+  if (box) {
+    let e = document.elementFromPoint(box.x + box.w / 2, box.y + box.h / 2);
+    while (e && e !== document.body) { hit.push(String(e.className)); if (e === sw) break; e = e.parentElement; }
+  }
+  const btns = [...document.querySelectorAll('[class*=wSkVaW_titleRow] button')]
+    .map(b => Object.assign({label: (b.getAttribute('aria-label') || (b.textContent || '').trim()).slice(0, 14)}, R(b)));
+  const cr = R(crumbs), ac = R(actions);
+  return {
+    switcher: box, crumbs: cr, title: R(title), actions: ac, hitChain: hit,
+    // 切换器必须完整落在 crumbs 内（crumbs 是 overflow:hidden —— 超出即被裁成半截）
+    clipped: !!(box && cr && box.right > cr.right + 0.5),
+    // 中心点必须真的能点到切换器本身（曾因被 headerActions 覆盖而点到"标准模式"）
+    clickable: hit.some(c => c.indexOf('ZKlsPq_trigger') >= 0),
+    // 切换器与右侧操作区不得重叠
+    overlap: !!(box && ac && box.x < ac.right && ac.x < box.right),
+    // 切换器必须单行：white-space/overflow-wrap 是**继承属性**，crumbs 上游是 nowrap，
+    // 插件任何把 normal/anywhere 设到 header/title/crumbs 容器上的规则都会让无类名文本
+    // span 逐字换行 —— 实测高度 28 → 96px（用户看到的"竖排一列"）。
+    tall: !!(box && box.h > 40),
+    spill: btns.filter(b => b.right > window.innerWidth + 0.5).map(b => b.label),
+    offscreenSwitcher: !!(box && box.w > 0 && (box.x < 0 || box.right > window.innerWidth + 0.5)),
+    // 标题至少要留得下可辨认的字符（方案里标题让位给切换器，但不能被压成 0）
+    titleW: title ? Math.round(title.getBoundingClientRect().width) : 0,
+    btnCount: btns.length,
+  };
+}"""
+
+
+def build_header_page(plugin: pathlib.Path, segments: int = 1) -> str:
+    """复现页：真实上游会话头部 CSS + 真实 DOM 嵌套（header > titleRow > titleCluster > crumbs）。
+
+    segments=1 会话页（面包屑只有当前会话标题）；
+    segments=2 子代理会话页（父会话 / 子代理名 —— 面包屑更长，空间更紧）。
+
+    为什么需要这组：crumbs 是 overflow:hidden 的窄条，里面塞着「会话标题 + 子代理切换器」，
+    插件任何作用在 header/title/crumbs 上的 white-space（继承属性）或宽度规则都会在这里
+    静默改变结果 —— 2026-09-14 实际出过两次：
+      ① white-space:normal + overflow-wrap:anywhere 被 crumbs 继承 ⇒ 切换器文字逐字换行成 96px 竖排；
+      ② crumbs 被压到 136px，标题+切换器按比例收缩后尾部被裁 ⇒ 手机上是「[方块] 8」，
+         且点击落在右侧 headerActions 上（打不开子代理列表）。
+    """
+    conv_css = extract_css(DSH_NODE_MODULES / "dsh-client-ui-conversation/lib/client.js", CONV_CSS_RE, "ConversationRoot")
+    sub_css = extract_css(DSH_NODE_MODULES / "dsh-client-ui-subagent/lib/client.js", SUBAGENT_CSS_RE, "SubagentSwitcher")
+
+    long_title = "miniqmt月底要禁用了，可以通过改造大qmt来平替原先在trade pc上的quant qmt proxy服务吗"
+    first_seg = (
+        f'<button type="button" class="wSkVaW_crumb">{long_title[:14]}</button>'
+        f'<span class="wSkVaW_crumbSep">/</span>'
+        if segments > 1 else ""
+    )
+    current = long_title if segments == 1 else "Proxy改造点研究"
+
+    return f"""<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>header-probe</title>
+<style>
+:root{{
+  --dsw-alias-bg-base:#16171b; --dsw-alias-bg-layer-1:#1e1f24; --dsw-specific-menu:#2a2b31;
+  --dsw-specific-selector:#33343a; --dsw-alias-label-primary:rgba(255,255,255,.9);
+  --dsw-alias-label-secondary:rgba(255,255,255,.7); --dsw-alias-label-tertiary:rgba(255,255,255,.5);
+  --dsw-alias-label-caption:rgba(255,255,255,.4); --dsw-alias-label-dimmed:rgba(255,255,255,.3);
+  --dsw-alias-border-l2:rgba(255,255,255,.14); --dsw-alias-border-l3:rgba(255,255,255,.2);
+  --dsw-alias-interactive-bg-hover:rgba(255,255,255,.08);
+  --dsw-alias-state-error-primary:#ff6b6b; --dsw-alias-brand-primary:#4f7cff;
+  --dsh-conversation-column-width:100%;
+}}
+html,body{{margin:0;padding:0;height:100%;background:var(--dsw-alias-bg-base);color:#eee;
+  font-family:-apple-system,"PingFang SC",system-ui,sans-serif}}
+{conv_css}
+{sub_css}
+#app{{height:100%;display:grid;grid-template-columns:260px minmax(0,1fr) 0px}}
+.sidebarCol{{background:#1a1b1f}}
+.wSkVaW_body{{flex:1 1 auto}}
+.hdrBtn{{height:28px;padding:0;border:none;border-radius:8px;background:rgba(255,255,255,.06);color:inherit}}
+</style></head>
+<body>
+<div id="app" class="frame">
+  <div class="sidebarCol" data-testid="sidebar">sidebar</div>
+  <div class="wSkVaW_root">
+    <header class="wSkVaW_header">
+      <div class="wSkVaW_titleRow">
+        <div class="wSkVaW_titleCluster">
+          <nav class="wSkVaW_crumbs" aria-label="会话层级">
+            <span class="wSkVaW_crumbSeg">
+              {first_seg}
+              <button type="button" class="wSkVaW_crumb wSkVaW_crumbCurrent">{current}</button>
+              <div style="display:contents">
+                <div class="ZKlsPq_root">
+                  <span class="ZKlsPq_separator">/</span>
+                  <button type="button" class="ZKlsPq_trigger" aria-haspopup="tree" aria-expanded="false"
+                          aria-label="8 个子代理，正在运行">
+                    <span class="ZKlsPq_activitySlot"></span>
+                    <span>8 个子代理</span>
+                    <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+                      <path d="M3 5l4 4 4-4" fill="none" stroke="currentColor"></path></svg>
+                  </button>
+                </div>
+              </div>
+            </span>
+          </nav>
+          <div class="wSkVaW_headerActions">
+            <button type="button" class="hdrBtn" style="width:68px" aria-label="标准模式">标准模式</button>
+          </div>
+        </div>
+        <div class="wSkVaW_headerUtilities">
+          <button type="button" class="hdrBtn" style="width:52px" aria-label="在 GNOME Terminal 中打开工作目录">T</button>
+          <button type="button" class="hdrBtn" style="width:28px" aria-label="更多操作">M</button>
+        </div>
+        <div class="wSkVaW_headerCorner">
+          <button type="button" class="hdrBtn" style="width:28px" aria-label="打开右侧边栏">C</button>
+        </div>
+      </div>
+      <div class="wSkVaW_tabs">
+        <button type="button" class="wSkVaW_tab wSkVaW_tabActive">对话</button>
+        <button type="button" class="wSkVaW_tab">轨迹</button>
+      </div>
+    </header>
+    <div class="wSkVaW_body"></div>
+  </div>
+</div>
+<script>window.__ModuleLoader__={{mode:"queue",load:function(reg){{window.__reg=reg}}}};</script>
+</body></html>"""
+
+
+def probe_header(plugin, viewport, segments, workdir):
+    """会话头部几何：切换器必须完整、可点、不与操作区重叠。"""
+    from playwright.sync_api import sync_playwright
+
+    w, h = viewport
+    html = build_header_page(plugin, segments)
+    page_path = workdir / f"probe-header-{segments}-{w}x{h}.html"
+    page_path.write_text(html, encoding="utf-8")
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        ctx = browser.new_context(
+            viewport={"width": w, "height": h}, device_scale_factor=2, is_mobile=True, has_touch=True
+        )
+        page = ctx.new_page()
+        page.goto(page_path.as_uri())
+        apply_plugin(page, plugin)
+        page.wait_for_timeout(400)
+        m = page.evaluate(HEADER_MEASURE_JS)
+        browser.close()
+
+    m.update({
+        "viewport": f"{w}x{h}",
+        "variant": "会话页" if segments == 1 else "子代理会话页",
+    })
+    return m
+
+
 def probe(plugin, viewport, options, detail_paras, workdir):
     from playwright.sync_api import sync_playwright
 
@@ -525,7 +709,7 @@ def main() -> int:
     ap.add_argument("--viewport", action="append", default=None, help="WxH，可重复（默认覆盖常见机型）")
     ap.add_argument("--options", type=int, action="append", default=None, help="选项数量，可重复")
     ap.add_argument("--detail-paras", type=int, default=2, help="detail 长文本段落数")
-    ap.add_argument("--only", choices=["qa", "composer"], default=None, help="只跑其中一组")
+    ap.add_argument("--only", choices=["qa", "composer", "header"], default=None, help="只跑其中一组")
     ap.add_argument("--json", action="store_true", help="输出 JSON")
     args = ap.parse_args()
 
@@ -536,7 +720,7 @@ def main() -> int:
     viewports = [tuple(int(x) for x in v.lower().split("x")) for v in (args.viewport or ["320x568", "360x640", "390x844", "414x896"])]
     options_list = args.options or [1, 3, 6, 12]
 
-    qa_results, composer_results = [], []
+    qa_results, composer_results, header_results = [], [], []
     with tempfile.TemporaryDirectory(prefix="dsh-mobile-probe-") as tmp:
         wd = pathlib.Path(tmp)
         if args.only in (None, "qa"):
@@ -552,6 +736,11 @@ def main() -> int:
             for vp in viewports[:2]:
                 composer_results.append(probe_composer(
                     plugin, vp, True, True, wd, model_label="DeepSeek V4.1 Flash"))
+        if args.only in (None, "header"):
+            # 会话头部：面包屑里的子代理切换器必须完整可见且可点（两种面包屑长度）
+            for vp in viewports:
+                for seg in (1, 2):
+                    header_results.append(probe_header(plugin, vp, seg, wd))
 
     qa_failures = [
         r for r in qa_results
@@ -590,13 +779,20 @@ def main() -> int:
         # 行内垂直中心离散 ≤1.5px（发送键上游 translateY(-2px) 曾致偏移）
         or any(s > 1.5 for s in (r.get("lineSpreads") or [0]))
     ]
+    # 会话头部：切换器被裁 / 点不到 / 与操作区重叠 / 按钮出屏 / 标题被压没
+    header_failures = [
+        r for r in header_results
+        if not r.get("switcher") or r.get("clipped") or not r.get("clickable")
+        or r.get("overlap") or r.get("spill") or r.get("offscreenSwitcher") or r.get("tall")
+        or (r.get("titleW") or 0) < 60
+    ]
 
     if args.json:
         print(json.dumps({
-            "ok": not qa_failures and not composer_failures,
-            "qa": qa_results, "composer": composer_results,
+            "ok": not qa_failures and not composer_failures and not header_failures,
+            "qa": qa_results, "composer": composer_results, "header": header_results,
         }, ensure_ascii=False, indent=2))
-        return 1 if (qa_failures or composer_failures) else 0
+        return 1 if (qa_failures or composer_failures or header_failures) else 0
 
     print(f"被测插件: {plugin}")
 
@@ -629,8 +825,24 @@ def main() -> int:
                   f"{'✓' if r.get('accessIconShown') else '✗':<10} {perm_txt:<10} {ell:<9} "
                   f"{'✓' if not r.get('misaligned') else '✗':<6}")
 
+    if header_results:
+        print()
+        print("── 会话头部（面包屑 + 子代理切换器）──")
+        print(f"{'视口':<10} {'形态':<14} {'切换器完整':<11} {'单行':<6} {'可点':<6} {'不重叠':<7} "
+              f"{'不出屏':<7} {'标题宽':<7} {'切换器宽':<8}")
+        print("-" * 82)
+        for r in header_results:
+            sw = r.get("switcher") or {}
+            print(f"{r['viewport']:<10} {r['variant']:<14} "
+                  f"{'✓' if not r.get('clipped') else '✗':<12} "
+                  f"{'✓' if not r.get('tall') else '✗':<7} "
+                  f"{'✓' if r.get('clickable') else '✗':<7} "
+                  f"{'✓' if not r.get('overlap') else '✗':<8} "
+                  f"{'✓' if not r.get('spill') else '✗':<8} "
+                  f"{r.get('titleW', 0):<8} {round(sw.get('w', 0)):<8}")
+
     print()
-    if qa_failures or composer_failures:
+    if qa_failures or composer_failures or header_failures:
         if qa_failures:
             print(f"❌ 提问卡片回归：{len(qa_failures)} 个用例不达标（选项被裁 / 滚动失效 / 提交按钮不可见）")
             for r in qa_failures:
@@ -674,6 +886,29 @@ def main() -> int:
                 if r.get("count", 0) < 2:
                     why.append(f"控件数异常={r.get('count')}")
                 print(f"   - {r['viewport']} {r.get('variant')}: " + "；".join(why or ["未知"]))
+        if header_failures:
+            print(f"❌ 会话头部回归：{len(header_failures)} 个用例不达标（子代理切换器被裁/点不到）")
+            for r in header_failures:
+                why = []
+                if not r.get("switcher"):
+                    why.append("页面里找不到 ZKlsPq_trigger（上游类名或结构已变，选择器需复核）")
+                if r.get("clipped"):
+                    why.append(f"切换器被 crumbs 裁掉（ crumbs 右 {round((r.get('crumbs') or {}).get('right', 0))}"
+                               f" < 切换器右 {round((r.get('switcher') or {}).get('right', 0))}）")
+                if not r.get("clickable"):
+                    why.append(f"切换器中心点不到它（命中链={r.get('hitChain')}）")
+                if r.get("tall"):
+                    why.append(f"切换器不是单行（高 {round((r.get('switcher') or {}).get('h', 0))}px > 40px，"
+                               f"white-space 被继承污染 → 文字逐字换行）")
+                if r.get("overlap"):
+                    why.append("切换器与 headerActions 重叠")
+                if r.get("spill"):
+                    why.append(f"按钮越出视口={r['spill']}")
+                if r.get("offscreenSwitcher"):
+                    why.append("切换器整体出屏")
+                if (r.get("titleW") or 0) < 60:
+                    why.append(f"会话标题被压没（{r.get('titleW')}px < 60px）")
+                print(f"   - {r['viewport']} {r.get('variant')}: " + "；".join(why or ["未知"]))
         return 1
 
     parts = []
@@ -682,6 +917,9 @@ def main() -> int:
     if composer_results:
         parts.append(f"操作行 {len(composer_results)} 个（互不重叠/不越界/可点击、"
                      f"权限图标常显、被裁模型名走省略号、图标文字垂直对齐）")
+    if header_results:
+        parts.append(f"会话头部 {len(header_results)} 个（子代理切换器完整可见且单行、"
+                     f"中心点可点、与操作区不重叠、按钮不出屏、标题不被压没）")
     print("✅ 全部通过：" + "；".join(parts))
     return 0
 
