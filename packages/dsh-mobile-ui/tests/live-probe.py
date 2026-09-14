@@ -235,6 +235,58 @@ def run(args) -> int:
                 if size and (size[0] < 32 or size[1] < 30):
                     fails.append(f"工具按钮触摸目标过小：{size}")
 
+            # ③e ⚠️⚠️ 宽度相关的「隐形死区」回归（2026-09-14 用户第三次报「三个点没反应」的真根因）
+            #     上游右侧栏 resize 把手 pI_x6G_handle 是 absolute;top:0;bottom:0;width:8px;
+            #     z-index:11;pointer-events:auto —— 右侧栏折叠后 rightbarCol 缩成 height:0，
+            #     但把手**不跟着消失**，仍以 8px 宽、贯穿整个视口高度钉在固定 x（实测 276..284）。
+            #     工具组是右对齐的（⋯ 中心 = 视口宽 - 134）⇒ 它只在 **410–417px** 这段视口里
+            #     正好压住 ⋯ 的中心：「390px 测着全好、用户手机却点不动」就是这么来的。
+            #     ⇒ 断言**必须扫一批宽度**，单宽度探针天然漏检；同时确认把手已不可命中
+            #     （插件 0.2.7 起 display:none，另给工具组 position:relative;z-index:30 做第二道保险）。
+            HITTEST = """() => {
+              const h = document.querySelector('[class*=pI_x6G_handle]');
+              const hs = h ? getComputedStyle(h) : null;
+              return { handle: h ? { display: hs.display, pe: hs.pointerEvents } : null,
+                buttons: [...document.querySelectorAll('#dsh-mobile-tab-tools button')].map(b => {
+                  const r = b.getBoundingClientRect();
+                  const t = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+                  return { id: b.id, self: !!(t && (t === b || b.contains(t))),
+                    top: t ? (t.id || String(t.className || '').split(' ').filter(Boolean).pop() || t.tagName) : null }; }) }; }"""
+            dead, covered, probe412 = [], [], None
+            for vw in (320, 360, 375, 390, 400, 410, 412, 415, 418, 428, 460, 768):
+                page.set_viewport_size({"width": vw, "height": h})
+                page.wait_for_timeout(320)
+                r = page.evaluate(HITTEST)
+                if r["handle"] and r["handle"]["display"] != "none":
+                    dead.append(vw)
+                miss = [f"{x['id']}←{x['top']}" for x in r["buttons"] if not x["self"]]
+                if miss:
+                    covered.append(f"{vw}px:{','.join(miss)}")
+                if vw == 412:                       # 用户实测踩中的那一段宽度，做端到端点击验证
+                    c412 = page.evaluate("""() => { const b = document.getElementById('dsh-mobile-more-proxy');
+                      if (!b) return null; const r = b.getBoundingClientRect();
+                      return [r.x + r.width / 2, r.y + r.height / 2]; }""")
+                    seq2 = []
+                    if c412:
+                        for _ in range(2):
+                            page.touchscreen.tap(c412[0], c412[1])
+                            page.wait_for_timeout(900)
+                            seq2.append(page.evaluate(menus_js))
+                        if seq2[1]:                 # 别把菜单留着干扰后续断言
+                            page.touchscreen.tap(c412[0], c412[1])
+                            page.wait_for_timeout(700)
+                    probe412 = seq2
+            page.set_viewport_size({"width": w, "height": h})
+            page.wait_for_timeout(500)
+            print(f"  [宽度扫描 12 档] 把手残留={dead or '无'} 按钮被覆盖={covered or '无'} 412px ⋯开合={probe412}（期望 [1,0]）")
+            if dead:
+                fails.append(f"右侧栏拖拽把手又在这些宽度残留成隐形死区：{dead}px"
+                             f"（pI_x6G_handle 覆盖整列 ⇒ 该列 tap 全被吃掉）")
+            if covered:
+                fails.append(f"tabs 行工具按钮被别的层盖住（点不到）：{covered}")
+            if probe412 is not None and probe412 != [1, 0]:
+                fails.append(f"412px（用户手机宽度）下 ⋯ 按钮仍不能开合：{probe412}")
+
             # ④ 菜单行可进入子代理（面包屑应变成两段）
             page.touchscreen.tap(sw["x"], sw["y"])
             page.wait_for_timeout(800)

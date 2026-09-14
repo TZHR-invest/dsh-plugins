@@ -316,6 +316,19 @@ window.__ModuleLoader__.load({
 			"  body.dsh-mobile-ui #dsh-mobile-tab-tools button{width:36px !important;height:34px !important;min-width:36px !important;display:inline-flex !important;align-items:center !important;justify-content:center !important;padding:0 !important;border:none !important;border-radius:8px !important;background:transparent !important;color:var(--dsw-alias-label-secondary,rgba(255,255,255,.7)) !important;cursor:pointer !important}",
 			"  body.dsh-mobile-ui #dsh-mobile-tab-tools button:active{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08)) !important}",
 			"  body.dsh-mobile-ui #dsh-mobile-tab-tools svg{width:18px !important;height:18px !important;fill:none !important;stroke:currentColor !important;stroke-width:1.8 !important;stroke-linecap:round !important;stroke-linejoin:round !important}",
+			/* ⚠️⚠️ 隐形死区：右侧栏 resize 把手的残留（2026-09-14 定案，用户报「三个点没反应」的真根因）
+			   上游 pI_x6G_handle 是 rightbarCol 的拖拽热区：position:absolute;top:0;bottom:0;
+			   width:8px;margin-left:-4px;z-index:11;pointer-events:auto，left 是**固定像素**（实测 276px）。
+			   折叠右侧栏时 rightbarCol 收缩成 height:0（实测 rect=[0,915,412,0]），
+			   **但把手不跟着消失**，仍以 8px 宽、**贯穿整个视口高度**（0→915）钉在 x=276..284。
+			   后果：那一整列 8px 宽的 tap 全被吃掉（手机上没有 col-resize，用户只会觉得「点了没反应」），
+			   正文区的按钮/输入框也一并被挡。实测（同一份 client.js，仅视口不同）：
+			     412px：⋯ 按钮 260..296 的中心 278 落在 276..284 内 ⇒ elementFromPoint=handle，tap 开合命中 0/5
+			     390/435/460px：按钮恰好错开这条带 ⇒ 5/5（所以这个 bug「挑宽度」，极难靠换机型复现）
+			   移动端不需要 col-resize ⇒ 直接移除；同时给工具组抬 z-index 做第二道保险
+			   （把手 z-index:11，工具组 z-index:30，即便将来又冒出别的覆盖层也压不住按钮）。 */
+			"  body.dsh-mobile-ui [class*=pI_x6G_handle]{display:none !important}",
+			"  body.dsh-mobile-ui #dsh-mobile-tab-tools{position:relative !important;z-index:30 !important}",
 			/* ── 折叠输入区（阅读模式）：省下 composerSeat 的 ~272px，全部让给正文 ──
 			   触发方式：tabs 行的键盘按钮（状态存 localStorage，刷新后保持）。
 			   ⚠️ 提问卡片（ask_user_question）就渲染在 composerSeat 里 ⇒ 折叠状态下若检测到卡片，
