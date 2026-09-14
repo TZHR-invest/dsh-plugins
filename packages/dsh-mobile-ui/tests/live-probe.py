@@ -152,7 +152,10 @@ def run(args) -> int:
             #     上游按桌面宽度做左/右对齐 —— 后台任务菜单 right 溢出 207px、「更多操作」菜单 left 溢出 90px）
             for name, trig_sel, menu_sel in (
                 ("后台任务菜单", "button[class*=QsffPG_trigger]", "[class*=QsffPG_menu]"),
-                ("更多操作菜单", "button[class*=nL4_yW_moreButton]", "[role=menu][class*=_list_1nxmc_]"),
+                # 「更多操作」的入口是插件注入的**代理按钮**：上游按钮已被移出可点层
+                # （position:absolute; opacity:0; pointer-events:none —— 否则它会算出 0×0 的菜单，
+                #  见 client.js 里 headerUtilities 段注释），点它才算走用户的真实路径
+                ("更多操作菜单", "#dsh-mobile-more-proxy", "[role=menu][class*=_list_1nxmc_]"),
             ):
                 pos = page.evaluate(
                     """(s) => { const b = document.querySelector(s); if (!b) return null;
@@ -170,6 +173,46 @@ def run(args) -> int:
                     fails.append(f"{name}打开后没有任何条目（{g}）")
                 page.keyboard.press("Escape")
                 page.wait_for_timeout(800)
+
+            # ③c header 瘦身 + 折叠输入区（2026-09-14：用户反馈「标题栏三行有点乱 / 正文显得窄」）
+            lay = page.evaluate("""() => {
+              const hdr = document.querySelector('header'); const hb = hdr ? hdr.getBoundingClientRect().bottom : 0;
+              const seat = document.querySelector('[class*=composerSeat]');
+              const seatVis = seat && getComputedStyle(seat).display !== 'none' && seat.getBoundingClientRect().height > 0;
+              const bottom = seatVis ? seat.getBoundingClientRect().top : window.innerHeight;
+              const tools = [...document.querySelectorAll('#dsh-mobile-tab-tools button')].map(b => b.id);
+              const hamburger = document.getElementById('dsh-mobile-menu-btn');
+              return { headerH: Math.round(hb), readPct: Math.round((bottom - hb) / window.innerHeight * 100),
+                tools: tools, hamburgerHidden: hamburger ? getComputedStyle(hamburger).display === 'none' : null }; }""")
+            print(f"  [布局] header={lay['headerH']}px 正文占比={lay['readPct']}% 工具={lay['tools']}")
+            # 行数回涨（三行 header ⇒ 138px）或工具组缺失都算回归
+            if lay["headerH"] > 120:
+                fails.append(f"header 又变高了（{lay['headerH']}px > 120px，是不是行数回涨了？）")
+            if len(lay["tools"]) < 3:
+                fails.append(f"tabs 行工具组不全：{lay['tools']}（应含 more-proxy / fold-composer / tab-menu）")
+            if lay.get("hamburgerHidden") is not True:
+                fails.append("会话页的原悬浮汉堡没隐藏（会压住第二行/tabs 行）")
+            # 折叠切换：正文占比应显著上升，且按钮状态跟着翻
+            fold = page.evaluate("""() => { const b = document.getElementById('dsh-mobile-fold-composer'); if (!b) return null;
+                const r = b.getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; }""")
+            if fold:
+                page.touchscreen.tap(fold[0], fold[1])
+                page.wait_for_timeout(1200)
+                folded = page.evaluate("""() => {
+                  const seat = document.querySelector('[class*=composerSeat]');
+                  const seatVis = seat && getComputedStyle(seat).display !== 'none' && seat.getBoundingClientRect().height > 0;
+                  const hb = document.querySelector('header').getBoundingClientRect().bottom;
+                  const bottom = seatVis ? seat.getBoundingClientRect().top : window.innerHeight;
+                  return { hidden: document.body.classList.contains('dsh-mobile-composer-hidden'),
+                    readPct: Math.round((bottom - hb) / window.innerHeight * 100) }; }""")
+                print(f"  [折叠] hidden={folded['hidden']} 正文占比={folded['readPct']}%")
+                if not folded["hidden"] or folded["readPct"] < lay["readPct"] + 15:
+                    fails.append(f"折叠输入区没生效（{lay['readPct']}% → {folded['readPct']}%）")
+                page.touchscreen.tap(fold[0], fold[1])   # 复原，别影响后续断言
+                page.wait_for_timeout(1000)
+                back = page.evaluate("() => document.body.classList.contains('dsh-mobile-composer-hidden')")
+                if back:
+                    fails.append("再次点击没能恢复输入区")
 
             # ④ 菜单行可进入子代理（面包屑应变成两段）
             page.touchscreen.tap(sw["x"], sw["y"])

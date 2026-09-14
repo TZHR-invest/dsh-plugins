@@ -274,6 +274,48 @@ window.__ModuleLoader__.load({
 			   升级后跑 tests/live-probe.py 复核（已覆盖后台任务菜单）。 */
 			"  body.dsh-mobile-ui [class*=QsffPG_menu],body.dsh-mobile-ui [role=menu][class*=_list_1nxmc_]{position:fixed !important;left:8px !important;right:8px !important;width:auto !important;min-width:0 !important;max-width:none !important;max-height:calc(100vh - 130px) !important;overflow:auto !important;top:calc(var(--dsh-mobile-popover-top,42px) + env(safe-area-inset-top,0px)) !important}",
 			"  body.dsh-mobile-ui [role=menu][class*=_list_1nxmc_]{--dsh-mobile-popover-top:76px}",
+			/* ── 手机端 header 瘦身 + 正文占比（2026-09-14，用户反馈「标题栏三行有点乱 / 正文显得窄」）──
+			   实测 390px：header 138px（titleRow 三行）＋ 输入区 272px ⇒ 正文只剩 434px（占屏 51%）。
+			   三行里第三行是「终端打开 / 选择打开方式 / 更多操作 / 打开右侧边栏」——前两个点了是在
+			   **服务器上**开终端（手机上什么也看不到）、右侧边栏早被本插件隐藏（点了空白），
+			   只有「更多操作」（下载 Session 日志）有用。处理：
+			     ① 整行隐藏（行空掉后 header 少 32px）；
+			     ② 「更多操作」改由**插件注入到 tabs 行空白处的按钮代理**（点击转发给上游按钮，
+			        上游按钮仍留在 DOM 里只是不可见，程序化 click 照常触发 React 逻辑）；
+			     ③ tabs 行右侧本来空着 246px，顺带放「折叠输入框」开关。
+			   隐藏后 titleRow 只剩 titleCluster 一行组（crumbs 行 + headerActions 行），header ≈ 105px。 */
+						/* ⚠️ headerUtilities 用「移出文档流但保留坐标」而不是 display:none：
+			   上游「更多操作」按钮的菜单位置由它自己的 getBoundingClientRect 算出，display:none 时
+			   该矩形全 0 ⇒ 菜单渲染成 0×0 根本看不见（2026-09-14 实测踩到）。
+			   改成 absolute + opacity:0 + pointer-events:none：不占布局高度（header 照样瘦身）、
+			   矩形照常可测、人也点不到（点击由 tabs 行的代理按钮转发）。 */
+			"  body.dsh-mobile-ui [class*=wSkVaW_headerUtilities]{position:absolute !important;top:74px !important;left:40px !important;opacity:0 !important;pointer-events:none !important}",
+			"  body.dsh-mobile-ui [class*=wSkVaW_headerCorner]{display:none !important}",
+			/* 抽屉入口（原右上角悬浮汉堡 top:48/right:12，42px）在 header 从 138 降到 107 后
+			   正好压在第二行（后台任务）与 tabs 行上 —— vision 复核截图时抓到。
+			   改为并入 tabs 行工具组（#dsh-mobile-tab-tools 第三个按钮，点击仍走 openDrawer()），
+			   原悬浮按钮恒定隐藏。 */
+						/* ⚠️ 原悬浮汉堡只在「有 tabs 行的会话页」隐藏 —— 首页（hero）没有 tabs 行，
+			   若一并隐藏就**没有任何抽屉入口**了（2026-09-14 实测踩到：首页点不开会话列表）。
+			   :has() 判断 tabs 行是否存在；首页仍走 JS 原有的三/四态显隐逻辑。 */
+			"  body.dsh-mobile-ui:has([class*=wSkVaW_tabs]) #dsh-mobile-menu-btn{display:none !important}",
+			/* 正文与 tabs 行的间距（折叠输入区后正文直接顶到 tabs 下方，实测贴得过近） */
+			"  body.dsh-mobile-ui.dsh-mobile-composer-hidden [class*=scrollBody]{padding-bottom:calc(14px + env(safe-area-inset-bottom,0px)) !important}",
+			/* 折叠态的可发现性：内容末尾给一句提示（视觉模型复核时指出折叠后底部大片留白、
+			   用户可能不知道从哪恢复；提示跟随内容，长会话滚到底才看到，不打扰阅读） */
+			"  body.dsh-mobile-ui.dsh-mobile-composer-hidden [class*=scrollBody]::after{content:'输入框已折叠 · 点标签行右侧 ▤ 图标展开';display:block;text-align:center;padding:14px 0 4px;font-size:11px;line-height:1.4;color:var(--dsw-alias-label-caption,rgba(255,255,255,.35))}",
+			/* tabs 行做成「标签靠左 / 工具靠右」 */
+			"  body.dsh-mobile-ui [class*=wSkVaW_tabs]{align-items:center !important}",
+			"  body.dsh-mobile-ui #dsh-mobile-tab-tools{margin-left:auto !important;display:inline-flex !important;align-items:center !important;gap:6px !important;flex:0 0 auto !important}",
+			"  body.dsh-mobile-ui #dsh-mobile-tab-tools button{width:30px !important;height:26px !important;min-width:30px !important;display:inline-flex !important;align-items:center !important;justify-content:center !important;padding:0 !important;border:none !important;border-radius:8px !important;background:transparent !important;color:var(--dsw-alias-label-secondary,rgba(255,255,255,.7)) !important;cursor:pointer !important}",
+			"  body.dsh-mobile-ui #dsh-mobile-tab-tools button:active{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08)) !important}",
+			"  body.dsh-mobile-ui #dsh-mobile-tab-tools svg{width:17px !important;height:17px !important;fill:none !important;stroke:currentColor !important;stroke-width:1.8 !important;stroke-linecap:round !important;stroke-linejoin:round !important}",
+			/* ── 折叠输入区（阅读模式）：省下 composerSeat 的 ~272px，全部让给正文 ──
+			   触发方式：tabs 行的键盘按钮（状态存 localStorage，刷新后保持）。
+			   ⚠️ 提问卡片（ask_user_question）就渲染在 composerSeat 里 ⇒ 折叠状态下若检测到卡片，
+			   JS 会强制展开（见 sync 里的 qaOpen 分支），否则用户看不到问题。 */
+			"  body.dsh-mobile-ui.dsh-mobile-composer-hidden [class*=composerSeat],body.dsh-mobile-ui.dsh-mobile-composer-hidden [class*=composerStack],body.dsh-mobile-ui.dsh-mobile-composer-hidden [class*=uV2eYG_root]{display:none !important}",
+			"  body.dsh-mobile-ui #dsh-mobile-tab-tools button.dsh-mobile-on{background:var(--dsw-specific-selector,rgba(255,255,255,.12)) !important;color:var(--dsw-alias-label-primary,rgba(255,255,255,.9)) !important}",
 			/* 输入框聚焦反馈 */
 			"  body.dsh-mobile-ui textarea:focus,body.dsh-mobile-ui [class*=input]:focus-within{outline:none;box-shadow:0 0 0 2px var(--dsw-alias-brand-primary,rgba(79,124,255,.45))}",
 			/* 消息流操作按钮（复制/反馈/分享）触摸目标提升。
@@ -475,6 +517,90 @@ window.__ModuleLoader__.load({
 					document.body.appendChild(tabbar);
 				}
 
+				/* ── tabs 行工具按钮（2026-09-14）──────────────────────────────────
+				   header 第三行在手机上是死重（见 CSS 段注释：终端/打开方式点了是在服务器开终端，
+				   右侧边栏早被本插件隐藏），整行已用 CSS 隐藏；这里把唯一有用的「更多操作」代理过来
+				   （点击转发给上游按钮 —— 它仍在 DOM 里只是不可见，程序化 click 照常触发 React 逻辑），
+				   并新增「折叠输入区」开关（阅读模式，省 ~272px 全部让给正文）。
+				   ⚠️ 注入的节点会被 React 重渲染清掉 ⇒ 在 sync() 里保持 ensure（幂等）。
+				   ⚠️ 提问卡片就住在 composerSeat 里 ⇒ 折叠状态下一旦检测到卡片必须强制展开，
+				      否则用户看不到问题（applyComposerHidden 里用 qaOpen 兜住）。 */
+				var COMPOSER_HIDDEN_KEY = "dsh-mobile-composer-hidden";
+				function composerHidden() {
+					try { return window.localStorage.getItem(COMPOSER_HIDDEN_KEY) === "1"; }
+					catch (e) { return false; }
+				}
+				function applyComposerHidden() {
+					try {
+						var hide = composerHidden() && !qaOpen;
+						document.body.classList.toggle("dsh-mobile-composer-hidden", !!hide);
+						var btn = document.getElementById("dsh-mobile-fold-composer");
+						if (btn) {
+							btn.classList.toggle("dsh-mobile-on", !!hide);
+							btn.setAttribute("aria-label", hide ? "显示输入框" : "隐藏输入框");
+						}
+					} catch (e) { /* 静默降级 */ }
+				}
+				function setComposerHidden(on) {
+					try { window.localStorage.setItem(COMPOSER_HIDDEN_KEY, on ? "1" : "0"); } catch (e) { /* 隐私模式 */ }
+					applyComposerHidden();
+				}
+				function ensureTabTools() {
+					try {
+						var tabs = document.querySelector("[class*=wSkVaW_tabs]");
+						if (!tabs) return;
+						if (!document.getElementById("dsh-mobile-tab-tools")) {
+							var box = document.createElement("div");
+							box.id = "dsh-mobile-tab-tools";
+							/* 「更多操作」代理：转发给上游按钮（含「下载 Session 日志」） */
+							var more = document.createElement("button");
+							more.type = "button";
+							more.id = "dsh-mobile-more-proxy";
+							more.setAttribute("aria-label", "更多操作");
+							more.innerHTML = "<svg viewBox='0 0 24 24'><circle cx='5' cy='12' r='1.7'/><circle cx='12' cy='12' r='1.7'/><circle cx='19' cy='12' r='1.7'/></svg>";
+							more.addEventListener("click", function (e) {
+								try {
+									e.preventDefault();
+									e.stopPropagation();
+									var up = document.querySelector("button[class*=nL4_yW_moreButton]");
+									if (up) up.click();
+								} catch (err) { /* 静默 */ }
+							});
+							/* 折叠/展开输入区 */
+							var fold = document.createElement("button");
+							fold.type = "button";
+							fold.id = "dsh-mobile-fold-composer";
+							fold.setAttribute("aria-label", "隐藏输入框");
+							fold.innerHTML = "<svg viewBox='0 0 24 24'><rect x='2.5' y='6' width='19' height='12' rx='2.5'/><path d='M6.5 10h11M6.5 14h6'/></svg>";
+							fold.addEventListener("click", function (e) {
+								try {
+									e.preventDefault();
+									e.stopPropagation();
+									setComposerHidden(!composerHidden());
+								} catch (err) { /* 静默 */ }
+							});
+							/* 抽屉入口（取代右上角悬浮汉堡，见 CSS 段注释） */
+							var menuBtn = document.createElement("button");
+							menuBtn.type = "button";
+							menuBtn.id = "dsh-mobile-tab-menu";
+							menuBtn.setAttribute("aria-label", "菜单");
+							menuBtn.innerHTML = "<svg viewBox='0 0 24 24'><path d='M4 7h16M4 12h16M4 17h10'/></svg>";
+							menuBtn.addEventListener("click", function (e) {
+								try {
+									e.preventDefault();
+									e.stopPropagation();
+									openDrawer();
+								} catch (err) { /* 静默 */ }
+							});
+							box.appendChild(more);
+							box.appendChild(fold);
+							box.appendChild(menuBtn);
+							tabs.appendChild(box);
+						}
+						applyComposerHidden();
+					} catch (e) { /* 静默降级 */ }
+				}
+
 				function setTabActive(key) {
 					try {
 						if (!tabbar) return;
@@ -575,6 +701,8 @@ window.__ModuleLoader__.load({
 								tabbar.style.display = (drawerOpen || settingsOpen || qaOpen || popOpen)
 									? "none" : "";
 							}
+							/* tabs 行工具按钮（更多操作代理 + 折叠输入区）—— React 重渲染后重建 */
+							ensureTabTools();
 						} else {
 							document.body.classList.remove("dsh-mobile-ui");
 							qaOpen = false;
@@ -598,6 +726,8 @@ window.__ModuleLoader__.load({
 					mq.addListener(sync);
 				}
 
+				/* 折叠状态在进入页面时就生效（localStorage 恢复），不等 React 渲染完 */
+				applyComposerHidden();
 				/* 首次同步 + 等待 React 渲染出 frame 后重试 */
 				sync();
 				var tries = 0;
