@@ -77,9 +77,12 @@ for d in packages/*/; do n=$(basename $d); r=$(node -p "require('./$d/package.js
 ```bash
 npm publish                                   # 返回 PUT 202 = 异步受理，不是最终成功
 # 轮询到 tarball 可下载（元数据约 3 分钟、tarball 约 4-5 分钟才就绪，期间 404 属正常）
-curl -sI https://registry.npmjs.org/<pkg>/-/<pkg>-<ver>.tgz | head -1
+# ⚠️ 必须用 GET 探测：HEAD（curl -sI）对 npm CDN **会一直返回 404**，即使包早已可下载
+#    —— 2026-09-14 实测白等了 5 分钟，换成 GET 立刻 200（元数据其实早就就绪了）
+curl -sL -o /dev/null -w '%{http_code}\n' https://registry.npmjs.org/<pkg>/-/<pkg>-<ver>.tgz
 # 解包与仓库逐文件对 md5 —— 这一步才是"发布成功"的判据
-tar xzf <pkg>-<ver>.tgz && md5sum package/index.js packages/<name>/index.js
+curl -sL -o pkg.tgz https://registry.npmjs.org/<pkg>/-/<pkg>-<ver>.tgz && tar xzf pkg.tgz \
+  && md5sum package/index.js packages/<name>/index.js
 ```
 
 升版本后记得 **重新跑 `bash scripts/package.sh`**：tarball 里的 `package.json` 版本号
