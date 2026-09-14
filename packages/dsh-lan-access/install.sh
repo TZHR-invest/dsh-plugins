@@ -288,95 +288,43 @@ else
   fi
 fi
 
-# ── 4/6 特权围栏补丁（第 4 层，唯一留在 node_modules 的补丁）───────────────
-echo "== 4/6 特权围栏补丁 =="
-if [ -z "$ROOT" ]; then
-  echo "  [跳过] 未定位 dsh 安装目录"
-elif [ ! -d "$ROOT/node_modules/@deepseek-ai" ]; then
-  echo "  [跳过] $ROOT 下无 @deepseek-ai 包，请人工确认 dsh 安装位置"
-else
-  F="$ROOT/node_modules/@deepseek-ai/dsh-client-connection/lib/index.js"
-  if grep -q 'PRIVILEGED_METHODS.has(method) && !isTrustedApiRequest(request, trustedHosts)' "$F" 2>/dev/null; then
-    echo "  [已有] $F"
-  elif [ ! -f "$F" ]; then
-    echo "  [缺失] $F（该版本可能已无此文件，请人工确认）"
-    FAIL=1
-  elif [ "$MODE" = "--check" ]; then
-    echo "  [缺失] 特权围栏"
-  else
-    sed -i 's/PRIVILEGED_METHODS.has(method) && !isTrustedApiRequest(request, [[]])/PRIVILEGED_METHODS.has(method) \&\& !isTrustedApiRequest(request, trustedHosts)/' "$F"
-    if grep -q 'PRIVILEGED_METHODS.has(method) && !isTrustedApiRequest(request, trustedHosts)' "$F"; then
-      echo "  [已打] 特权围栏"
-    else
-      echo "  [失败] 特权围栏——该版本代码结构已变化，请人工处理"
-      FAIL=1
-    fi
+# ── 4/6 补丁层（特权围栏 / 设置持久化 / 令牌门卫 / websocket 压缩）──────────
+#
+# ⚠️ 为什么**委托 reapply-lan-patches.sh**（2026-09-14 重构，勿改回内联三段）：
+#   本脚本原先自己实现 4/5/6 三段，三段都按**顶层**
+#   `${ROOT}/node_modules/@deepseek-ai/<pkg>` 定位，而 dsh 把包嵌在
+#   `${ROOT}/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/<pkg>`
+#   ⇒ `[ ! -f "$F" ]` 恒真：
+#     ① `--check` 永久误报「缺失（该版本可能已无此文件，请人工确认）」；
+#     ② **apply 模式同样落进该分支、静默跳过** —— 这三段补丁实际上从未生效过，
+#        全靠 `reapply-lan-patches.sh` 兜住（2026-09-14 home-wsl 实证）；
+#     ③ 而且本脚本**没有 7/7（websocket permessage-deflate）段**，
+#        走 tarball 装机的机器拿不到 WS 压缩（慢链路症状会复现）。
+#   ⇒ 补丁层收敛到 reapply 单一事实源：嵌套定位正确、段数完整（0/7–7/7）、
+#     重启后的验证也更全（回环 401 / LAN 401 / ?token= 303 / 首页 200）。
+#     两处实现同一逻辑 = 必然漂移，上面的误报就是漂移的产物。
+REAPPLY="$DSH/reapply-lan-patches.sh"
+
+# 先分发/更新恢复脚本 —— 补丁层的唯一入口
+# ⚠️ 必须"总是覆盖"而不是 `! -f` 才拷：旧写法让**已有旧版 reapply 的机器永远停在旧逻辑**
+#    （home-wsl 就带着 9/11 版、没有 7/7 段，而 install.sh 拒绝更新它 ⇒ 压缩补丁永远打不上）
+if [ "$MODE" != "--check" ] && [ -f "$HERE/reapply-lan-patches.sh" ]; then
+  if [ -f "$REAPPLY" ] && ! cmp -s "$HERE/reapply-lan-patches.sh" "$REAPPLY"; then
+    cp "$REAPPLY" "$REAPPLY.bak-$(date +%Y%m%d-%H%M%S)"
+    echo "  [更新] $REAPPLY（旧版已备份为 .bak-<时间戳>）"
   fi
-  [ -f "$F" ] && node --check "$F" 2>/dev/null && echo "  语法 OK"
+  cp "$HERE/reapply-lan-patches.sh" "$DSH/" && chmod +x "$REAPPLY"
 fi
 
-
-# ── 5/6 设置持久化放行补丁（第 5 层：浏览器端 settingsScope 强制 host 模式）─
-echo "== 5/6 设置持久化放行补丁 =="
-if [ -z "$ROOT" ]; then
-  echo "  [跳过] 未定位 dsh 安装目录"
-elif [ ! -d "$ROOT/node_modules/@deepseek-ai" ]; then
-  echo "  [跳过] $ROOT 下无 @deepseek-ai 包，请人工确认 dsh 安装位置"
+echo "== 4/6 补丁层（特权围栏 / 设置持久化 / 令牌门卫 / websocket 压缩）=="
+if [ ! -f "$REAPPLY" ]; then
+  echo "  [缺失] $REAPPLY（安装包应自带 reapply-lan-patches.sh，请检查包完整性）"
+  FAIL=1
+elif [ "$MODE" = "--check" ]; then
+  echo "  → 以下 0/7–7/7 为 reapply-lan-patches.sh 的输出"
+  bash "$REAPPLY" --check
 else
-  F4="$ROOT/node_modules/@deepseek-ai/dsh-client-ui-settings/lib/client.js"
-  if grep -q 'new SettingsScopeController(connection.api, spec, "host")' "$F4" 2>/dev/null; then
-    echo "  [已有] 设置持久化放行"
-  elif [ ! -f "$F4" ]; then
-    echo "  [缺失] $F4（该版本可能已无此文件，请人工确认）"
-    FAIL=1
-  elif [ "$MODE" = "--check" ]; then
-    echo "  [缺失] 设置持久化放行"
-  else
-    sed -i 's/connection\.isLoopback ? "host" : "memory"/"host"/' "$F4"
-    if grep -q 'new SettingsScopeController(connection.api, spec, "host")' "$F4"; then
-      echo "  [已打] 设置持久化放行（LAN 访问也可读写设置）"
-    else
-      echo "  [失败] 设置持久化放行——该版本代码结构已变化，请人工处理"
-      FAIL=1
-    fi
-  fi
-  [ -f "$F4" ] && node --check "$F4" 2>/dev/null && echo "  语法 OK"
-fi
-
-# ── 6/6 webserver 令牌门卫补丁（第 6 层）────────────────────────────────────
-echo "== 6/6 webserver 令牌门卫补丁 =="
-if [ -z "$ROOT" ]; then
-  echo "  [跳过] 未定位 dsh 安装目录"
-elif [ ! -d "$ROOT/node_modules/@deepseek-ai" ]; then
-  echo "  [跳过] $ROOT 下无 @deepseek-ai 包，请人工确认 dsh 安装位置"
-else
-  FW="$ROOT/node_modules/@deepseek-ai/dsh-host-webserver/lib/index.js"
-  if [ ! -f "$FW" ]; then
-    echo "  [缺失] $FW（该版本可能已无此文件，请人工确认）"
-    FAIL=1
-  elif [ "$MODE" = "--check" ]; then
-    node "$PLUGIN/patch-webserver.mjs" "$FW" --check
-    case $? in
-      0) echo "  [已有] webserver 令牌门卫 v3" ;;
-      3) echo "  [旧版] webserver 令牌门卫（补丁脚本报告为旧版，运行 bash install.sh 即可就地升级 v3）" ;;
-      *) echo "  [缺失] webserver 令牌门卫" ;;
-    esac
-  else
-    if node "$PLUGIN/patch-webserver.mjs" "$FW"; then
-      echo "  [已完成] webserver 令牌门卫 v3（未授权请求 = 401 登录页，含回环）"
-    else
-      echo "  [失败] webserver 令牌门卫——请人工处理"
-      FAIL=1
-    fi
-    [ -f "$FW" ] && node --check "$FW" 2>/dev/null && echo "  语法 OK"
-  fi
-fi
-
-# ── 附加：分发升级恢复脚本 ─────────────────────────────────────────────────
-if [ -f "$HERE/reapply-lan-patches.sh" ] && [ ! -f "$DSH/reapply-lan-patches.sh" ] && [ "$MODE" != "--check" ]; then
-  cp "$HERE/reapply-lan-patches.sh" "$DSH/"
-  echo "== 附加 =="
-  echo "  [已装] $DSH/reapply-lan-patches.sh（dsh 升级后用它恢复）"
+  bash "$REAPPLY" || FAIL=1
 fi
 
 if [ "$MODE" = "--check" ]; then
@@ -418,9 +366,9 @@ if [ "$MODE" = "--restart" ]; then
       pkill -TERM -f 'sh -c dsh web' 2>/dev/null
       pkill -TERM -f 'dsh/lib/bin.js web' 2>/dev/null
       sleep 3
-      if [ -n "$ROOT" ] && [ -x "$ROOT/node_modules/.bin/dsh" ]; then
+      if [ -n "$(command -v dsh 2>/dev/null)" ]; then
         cd "$ROOT" || exit 1
-        setsid nohup ./node_modules/.bin/dsh web >> /tmp/dsh-web.log 2>&1 < /dev/null &
+        setsid nohup "$(command -v dsh)" web >> /tmp/dsh-web.log 2>&1 < /dev/null &
         echo "  新进程 PID=$!"
         sleep 8
         curl -s --noproxy '*' -o /dev/null -w "  127.0.0.1:3080 页面 -> %{http_code}\n" http://127.0.0.1:3080/ || echo "  [警告] 页面未就绪"
@@ -429,7 +377,12 @@ if [ "$MODE" = "--restart" ]; then
       fi
     fi
   fi
-  if [ -n "$ROOT" ] && [ -x "$ROOT/node_modules/.bin/dsh" ]; then
+  # ⚠️ 判据用「PATH 里有 dsh」而不是 `$ROOT/node_modules/.bin/dsh`：全局安装
+  #    （npm i -g / ~/.local/node、~/.npm-global）下 .bin 在 <prefix>/bin，
+  #    $ROOT/node_modules/.bin/ 并不存在 ⇒ 旧判据为假、整段验证被跳过并误报
+  #    「无法定位 dsh 可执行文件」（2026-09-14 home-wsl 实证）。
+  DSH_BIN="$(command -v dsh 2>/dev/null || true)"
+  if [ -n "$DSH_BIN" ]; then
     IP=$(hostname -I 2>/dev/null | awk '{print $1}')
     TOKEN=""
     [ -f "$DSH/lan-access-token" ] && TOKEN=$(cat "$DSH/lan-access-token")

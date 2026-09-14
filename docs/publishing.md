@@ -27,6 +27,7 @@
 
 | 包 | 版本 | 备注 |
 |---|---|---|
+| `dsh-lan-gateway` | **0.2.6** | `install.sh` 的补丁层**委托 `reapply-lan-patches.sh`**（单一事实源）：≤0.2.5 的 4/6–6/6 段按顶层 `node_modules/@deepseek-ai/<pkg>` 定位，而包嵌在 `dsh/node_modules/@deepseek-ai/` 下 ⇒ ①`--check` 误报三处「缺失」②**apply 同样静默跳过**（三段从未生效）③缺 7/7 deflate 段 ④reapply 分发用 `! -f` 守卫致**旧版永不更新**；另修重启验证判据（全局安装下 `$ROOT/node_modules/.bin/dsh` 不存在 ⇒ 整段验证被跳过）；补 `.npmignore` 防 `*.bak-*` 进包。**2026-09-14 已发 npm，8/8 逐文件 md5 核对一致**（本机 + home-wsl `--check` 双向验证） |
 | `dsh-lan-gateway` | **0.2.5** | WS 响应压缩（permessage-deflate，慢链路 4.80x：1.20MB→256KB；须重启 dsh web）+ 部署/恢复脚本三处静默缺口修复（install/reapply 在 tarball 根目录、写入式文件清单漏补丁源、reapply 安装根定位在 office_64g 失效）。**2026-09-14 已发 npm 并逐文件 md5 核对：13/13 与仓库一致** |
 | `dsh-lan-gateway` | 0.2.4 | 令牌门卫 v3：回环不再短路（本机 `127.0.0.1` 也出登录页 —— v2 下本机只能看到 host browserAuth 的纯文本 401）+ index-401 兜底（cookie 过期 / 签名密钥轮换时同样换登录页）；补 16 例单测 + `token-gate.v2.js` 留档（就地升级匹配基准） |
 | `dsh-lan-gateway` | 0.2.3 | 安装器不再静默关闭响应压缩（loader patch 整体替换 config；慢链路 11.19MB→3.95MB） |
