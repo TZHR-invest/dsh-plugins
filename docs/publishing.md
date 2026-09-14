@@ -31,6 +31,7 @@
 | `dsh-lan-gateway` | **0.2.5** | WS 响应压缩（permessage-deflate，慢链路 4.80x：1.20MB→256KB；须重启 dsh web）+ 部署/恢复脚本三处静默缺口修复（install/reapply 在 tarball 根目录、写入式文件清单漏补丁源、reapply 安装根定位在 office_64g 失效）。**2026-09-14 已发 npm 并逐文件 md5 核对：13/13 与仓库一致** |
 | `dsh-lan-gateway` | 0.2.4 | 令牌门卫 v3：回环不再短路（本机 `127.0.0.1` 也出登录页 —— v2 下本机只能看到 host browserAuth 的纯文本 401）+ index-401 兜底（cookie 过期 / 签名密钥轮换时同样换登录页）；补 16 例单测 + `token-gate.v2.js` 留档（就地升级匹配基准） |
 | `dsh-lan-gateway` | 0.2.3 | 安装器不再静默关闭响应压缩（loader patch 整体替换 config；慢链路 11.19MB→3.95MB） |
+| `dsh-mobile-ui` | **0.2.4** | 移动端**顶部 popover 出视口**修复（用户报「点后台任务/终端/session 日志显示不全」）：后台任务菜单 `QsffPG_menu`（absolute left:0 + 宽 336，锚在 x=261 ⇒ **右溢 207px**）与通用菜单 `[role=menu][class*=_list_1nxmc_]`（right:0 + 宽 218，锚在 x=100 ⇒ **左溢 90px**，含「下载 Session 日志」「在终端打开」项）一律改 `fixed` 到视口（左右各 8px、宽自适应、顶部 42/76px、max-height + 滚动兜底）；配套：菜单打开时隐藏右上角悬浮汉堡按钮（新增第 4 态，否则压住菜单首行——vision 复核截图发现）；titleCluster 允许换行（有后台任务时 headerActions 多出 150px 不收缩的切换器 ⇒ crumbs 被压到 106px、子代理切换器溢出 8px）。live-probe 增两条 popover 断言。**2026-09-14 已发 npm，5/5 逐文件 md5 核对一致** |
 | `dsh-mobile-ui` | **0.2.3** | 子代理切换器两处修复：①「个子代理」竖排成 96px 一列 + 被 crumbs 裁到点不开（`[class*=crumbs]` 的 white-space 继承泄漏 + 面包屑空间不足）；②箭头展开后**点不回去**（上游 trigger 无点击逻辑，靠 hover 打开）→ 复用上游键盘路径派发 ArrowDown/Escape。新增两个探针：`tests/mobile-layout-probe.py` 头部组 8 例、`tests/live-probe.py` 真机交互 |
 | `dsh-mobile-ui` | 0.2.2 | 移动端操作行重做（两行排布 / 等高 44px / 权限按钮空白与半截字符等 5 类修复，0.1.2 → 0.2.2） |
 | `dsh-vision-tool` | 0.1.2 | |

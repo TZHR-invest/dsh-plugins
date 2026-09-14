@@ -43,6 +43,15 @@ GEOM = """() => {
     crumbsText: (crumbs.innerText || '').replace(/\\n/g, ' ').slice(0, 60),
   };
 }"""
+POPOVER = """(sel) => { const m = document.querySelector(sel); if (!m) return null;
+  const r = m.getBoundingClientRect();
+  const items = m.querySelectorAll('[role=menuitem],[class*=row],[class*=item_]').length;
+  const mid = document.elementFromPoint(r.right - 40, r.top + 16);
+  return { left: Math.round(r.left), right: Math.round(r.right), h: Math.round(r.height), items: items,
+    ok: r.left >= -0.5 && r.right <= window.innerWidth + 0.5,
+    topRightHit: mid ? String(mid.className || '').split(' ').pop().slice(0, 22) : null,
+    hamburger: (document.getElementById('dsh-mobile-menu-btn') || {}).style ? document.getElementById('dsh-mobile-menu-btn').style.display : '?' }; }"""
+
 DRAWER = """() => { const s = document.querySelector('[class*=sidebarCol]');
   return s ? (getComputedStyle(s).display + ':' + Math.round(s.getBoundingClientRect().width)) : 'none'; }"""
 
@@ -138,6 +147,29 @@ def run(args) -> int:
             print(f"toggle 序列：{seq}（期望 [1,0,1,0]）")
             if seq != [1, 0, 1, 0]:
                 fails.append(f"点击无法临时开合：{seq}（期望 [1,0,1,0]）")
+
+            # ③b 顶部 popover 不许出视口（2026-09-14 用户报「点后台任务/终端/session 日志显示不全」：
+            #     上游按桌面宽度做左/右对齐 —— 后台任务菜单 right 溢出 207px、「更多操作」菜单 left 溢出 90px）
+            for name, trig_sel, menu_sel in (
+                ("后台任务菜单", "button[class*=QsffPG_trigger]", "[class*=QsffPG_menu]"),
+                ("更多操作菜单", "button[class*=nL4_yW_moreButton]", "[role=menu][class*=_list_1nxmc_]"),
+            ):
+                pos = page.evaluate(
+                    """(s) => { const b = document.querySelector(s); if (!b) return null;
+                         const r = b.getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; }""", trig_sel)
+                if not pos:
+                    print(f"  [{name}] 入口不存在，跳过")
+                    continue
+                page.touchscreen.tap(pos[0], pos[1])
+                page.wait_for_timeout(1500)
+                g = page.evaluate(POPOVER, menu_sel)
+                print(f"  [{name}] {json.dumps(g, ensure_ascii=False)}")
+                if not g or not g.get("ok"):
+                    fails.append(f"{name}跑出视口（{g}）—— 上游对齐按桌面宽度算，插件的浮层约束失效？")
+                elif g.get("items", 0) < 1:
+                    fails.append(f"{name}打开后没有任何条目（{g}）")
+                page.keyboard.press("Escape")
+                page.wait_for_timeout(800)
 
             # ④ 菜单行可进入子代理（面包屑应变成两段）
             page.touchscreen.tap(sw["x"], sw["y"])

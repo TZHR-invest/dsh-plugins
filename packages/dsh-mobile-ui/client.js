@@ -244,7 +244,13 @@ window.__ModuleLoader__.load({
 			   （退回“切换器被裁”），升级后跑 tests/mobile-layout-probe.py 的 subagent 段复核。 */
 			"  body.dsh-mobile-ui [class*=wSkVaW_crumbSeg] [class*=ZKlsPq_root]{flex:0 0 auto !important}",
 			"  body.dsh-mobile-ui [class*=wSkVaW_titleRow]{flex-wrap:wrap !important;row-gap:4px !important}",
-			"  body.dsh-mobile-ui [class*=wSkVaW_titleCluster]{flex:1 1 100% !important}",
+			"  body.dsh-mobile-ui [class*=wSkVaW_titleCluster]{flex:1 1 100% !important;flex-wrap:wrap !important;row-gap:4px !important}",
+			/* ⚠️ titleCluster 必须允许换行（2026-09-14 补）：会话有后台任务时，headerActions 里会
+			   多出一个 150px 的「N 个后台任务」切换器且**不收缩**（flex:0 0 auto）⇒ crumbs 被压到
+			   106px，子代理切换器（80px）溢出被裁 8px（实测 crumbs.right=126 < switcher.right=134）。
+			   允许换行后 space 不足时 headerActions 自动落到下一行，crumbs 独占整行；
+			   没有后台任务时（crumbs+actions 仅 182px）不触发换行，布局维持原样。
+			   代价：有后台任务的会话 header 106 → 136px。 */
 			/* 极窄屏（≤360px）面包屑只留当前段：子代理会话页的面包屑是
 			   「父会话 / 子代理名 / N 个子代理」，320px 实测当前段标题被挤到 36px
 			   （只剩两三个字符，探针会判 ❌），隐藏父级段与分隔符后回到 96px。
@@ -252,6 +258,22 @@ window.__ModuleLoader__.load({
 			"  @media (max-width:360px){",
 			"    body.dsh-mobile-ui [class*=wSkVaW_crumbSeg] > [class*=wSkVaW_crumb]:not([class*=wSkVaW_crumbCurrent]),body.dsh-mobile-ui [class*=wSkVaW_crumbSeg] > [class*=wSkVaW_crumbSep]{display:none !important}",
 			"  }",
+			/* ── 移动端浮层不许出视口（2026-09-14，用户报「点后台任务/终端/session 日志显示不全」）──
+			   上游两处 popover 按**桌面宽度**做对齐，390px 手机上直接飞到屏幕外（实测）：
+			     · 后台任务菜单 [class*=QsffPG_menu]：absolute left:0 + 固定宽 336，锚在 x=261 的按钮上
+			       ⇒ 右边界 597 ⇒ **右侧溢出 207px**，只剩最左 129px 可见；
+			     · 「更多操作」菜单 [role=menu][class*=_list_1nxmc_]（内含「下载 Session 日志」
+			       「在 GNOME Terminal 中打开工作目录」等项）：absolute right:0 + 宽 218，锚在 x=100 的按钮上
+			       ⇒ 左边界 **-90** ⇒ 左侧溢出 90px（用户就是在这一步看不到终端/日志项）。
+			   两处一律 fixed 到视口：左右各留 8px、宽度自适应、顶部落在 header 下方（第一行按钮 42px、
+			   第二行按钮 76px，用 CSS 变量区分），并补 max-height + overflow:auto 兜住长菜单。
+			   ⚠️ 必须 fixed 而不是「用 right:0 相对容器」：absolute 的 left/right 相对**按钮容器**，
+			   而容器在 header 里的横坐标随「有无子代理/后台任务」变化 —— 候选方案 right:0 在容器靠右时
+			   可用、靠左时左溢出；fixed 与容器位置无关（实测两种场景都在视口内）。
+			   ⚠️ hash 前缀（QsffPG_ / _1nxmc_）会随 dsh 升级漂移、失效是静默的（退回溢出），
+			   升级后跑 tests/live-probe.py 复核（已覆盖后台任务菜单）。 */
+			"  body.dsh-mobile-ui [class*=QsffPG_menu],body.dsh-mobile-ui [role=menu][class*=_list_1nxmc_]{position:fixed !important;left:8px !important;right:8px !important;width:auto !important;min-width:0 !important;max-width:none !important;max-height:calc(100vh - 130px) !important;overflow:auto !important;top:calc(var(--dsh-mobile-popover-top,42px) + env(safe-area-inset-top,0px)) !important}",
+			"  body.dsh-mobile-ui [role=menu][class*=_list_1nxmc_]{--dsh-mobile-popover-top:76px}",
 			/* 输入框聚焦反馈 */
 			"  body.dsh-mobile-ui textarea:focus,body.dsh-mobile-ui [class*=input]:focus-within{outline:none;box-shadow:0 0 0 2px var(--dsw-alias-brand-primary,rgba(79,124,255,.45))}",
 			/* 消息流操作按钮（复制/反馈/分享）触摸目标提升。
@@ -540,10 +562,19 @@ window.__ModuleLoader__.load({
 							/* 抽屉态下 sidebar 保持可见，否则隐藏 */
 							side.style.display = drawerOpen ? "" : "none";
 							ensureChrome();
-							/* 菜单按钮三态判定：抽屉 / 设置面板 / 提问卡片浮层打开时都隐藏。
+							/* 菜单按钮四态判定：抽屉 / 设置面板 / 提问卡片浮层 / **顶部 popover 菜单**
+							   打开时都隐藏。
 							   （旧写法只看 drawerOpen，会把设置面板打开时隐藏的菜单在下次 sync 又显示回来；
-							   提问卡片时则会浮在卡片右上角遮住问题标题） */
-							if (tabbar) tabbar.style.display = (drawerOpen || settingsOpen || qaOpen) ? "none" : "";
+							   提问卡片时则会浮在卡片右上角遮住问题标题；
+							   2026-09-14 补第 4 态：后台任务/「更多操作」菜单被本插件的浮层规则固定到
+							   top:42 全宽后，右上角的汉堡按钮正好压在菜单首行右侧 —— vision 复核截图时发现
+							   「第一行的耗时被按钮遮住」，故菜单开着时也隐藏它） */
+							var popOpen = !!(document.querySelector(
+								"[class*=QsffPG_menu],[role=menu][class*=_list_1nxmc_]"));
+							if (tabbar) {
+								tabbar.style.display = (drawerOpen || settingsOpen || qaOpen || popOpen)
+									? "none" : "";
+							}
 						} else {
 							document.body.classList.remove("dsh-mobile-ui");
 							qaOpen = false;
