@@ -290,12 +290,19 @@ window.__ModuleLoader__.load({
 			        上游按钮仍留在 DOM 里只是不可见，程序化 click 照常触发 React 逻辑）；
 			     ③ tabs 行右侧本来空着 246px，顺带放「折叠输入框」开关。
 			   隐藏后 titleRow 只剩 titleCluster 一行组（crumbs 行 + headerActions 行），header ≈ 105px。 */
-						/* ⚠️ headerUtilities 用「移出文档流但保留坐标」而不是 display:none：
+						/* ⚠️⚠️ headerUtilities 用「移出文档流但保留坐标」而不是 display:none：
 			   上游「更多操作」按钮的菜单位置由它自己的 getBoundingClientRect 算出，display:none 时
 			   该矩形全 0 ⇒ 菜单渲染成 0×0 根本看不见（2026-09-14 实测踩到）。
-			   改成 absolute + opacity:0 + pointer-events:none：不占布局高度（header 照样瘦身）、
-			   矩形照常可测、人也点不到（点击由 tabs 行的代理按钮转发）。 */
-			"  body.dsh-mobile-ui [class*=wSkVaW_headerUtilities]{position:absolute !important;top:74px !important;left:40px !important;opacity:0 !important;pointer-events:none !important}",
+			   ⚠️⚠️ 更不能再用 opacity:0（0.2.5–0.2.7 的写法，错）：**opacity 是「组不透明度」，祖先
+			   为 0 会让整棵子树（含弹层）一起透明** —— 实测「更多操作」菜单就挂在这棵子树里
+			   （祖先链：menu → span._root_1nxmc_ → div → headerUtilities），于是菜单**弹出来了、几何也正确**
+			   （实测 rect=[8,122,396,42]、含「下载 Session 日志」），却**完全看不见**，还因继承
+			   pointer-events:none 而**点不动** ⇒ 用户第三次反馈「点三个点还是没反应」的真根因
+			   （2026-09-15 定案；前两轮修的把手死区/竞态都是真问题，但不是这一条）。
+			   ✅ 正解 = visibility:hidden：同样不占布局、getBoundingClientRect 照常可测，
+			   且 **visibility 可被后代用 visible 覆盖**（opacity 不行）⇒ 弹层照常显示、照常可点。 */
+			"  body.dsh-mobile-ui [class*=wSkVaW_headerUtilities]{position:absolute !important;top:74px !important;left:40px !important;visibility:hidden !important}",
+			"  body.dsh-mobile-ui [class*=wSkVaW_headerUtilities] [role=menu],body.dsh-mobile-ui [class*=wSkVaW_headerUtilities] [class*=_list_1nxmc_],body.dsh-mobile-ui [class*=wSkVaW_headerUtilities] [class*=_portal_],body.dsh-mobile-ui [class*=wSkVaW_headerUtilities] [class*=QsffPG_menu]{visibility:visible !important;pointer-events:auto !important}",
 			"  body.dsh-mobile-ui [class*=wSkVaW_headerCorner]{display:none !important}",
 			/* 抽屉入口（原右上角悬浮汉堡 top:48/right:12，42px）在 header 从 138 降到 107 后
 			   正好压在第二行（后台任务）与 tabs 行上 —— vision 复核截图时抓到。

@@ -47,9 +47,20 @@ POPOVER = """(sel) => { const m = document.querySelector(sel); if (!m) return nu
   const r = m.getBoundingClientRect();
   const items = m.querySelectorAll('[role=menuitem],[class*=row],[class*=item_]').length;
   const mid = document.elementFromPoint(r.right - 40, r.top + 16);
+  // ⚠️ 几何正常 ≠ 人能看见/能点：必须同时查「中心命中自身」+「祖先链上的有效可见性」
+  //    （2026-09-15 教训：菜单 rect 完全正确、条目也在，但祖先 opacity:0 把它整棵子树变透明，
+  //     只断言 left/right/items 的旧版探针一路放行 ⇒ 用户连报三轮「没反应」）
+  const hit = document.elementFromPoint(r.left + r.width / 2, r.top + Math.min(20, r.height / 2));
+  // ⚠️ visibility 只看**自身计算值**：祖先 visibility:hidden 会被后代的 visible 覆盖（这正是本插件的修法），
+  //    扫祖先链会把「已经修好」判成 hidden（2026-09-15 自测踩到）。opacity 相反 —— 组不透明度**必须逐级相乘**。
+  const vis = getComputedStyle(m).visibility; let op = 1, n = m;
+  while (n && n !== document.body) { op *= parseFloat(getComputedStyle(n).opacity || '1'); n = n.parentElement; }
   return { left: Math.round(r.left), right: Math.round(r.right), h: Math.round(r.height), items: items,
     ok: r.left >= -0.5 && r.right <= window.innerWidth + 0.5,
     topRightHit: mid ? String(mid.className || '').split(' ').pop().slice(0, 22) : null,
+    visibility: vis, effectiveOpacity: +op.toFixed(2), pointerEvents: getComputedStyle(m).pointerEvents,
+    hitSelf: !!(hit && (hit === m || m.contains(hit))),
+    hitTop: hit ? String(hit.id || hit.className || hit.tagName).split(' ').filter(Boolean).pop().slice(0, 22) : null,
     hamburger: (document.getElementById('dsh-mobile-menu-btn') || {}).style ? document.getElementById('dsh-mobile-menu-btn').style.display : '?' }; }"""
 
 DRAWER = """() => { const s = document.querySelector('[class*=sidebarCol]');
@@ -171,6 +182,16 @@ def run(args) -> int:
                     fails.append(f"{name}跑出视口（{g}）—— 上游对齐按桌面宽度算，插件的浮层约束失效？")
                 elif g.get("items", 0) < 1:
                     fails.append(f"{name}打开后没有任何条目（{g}）")
+                # ⚠️⚠️ 光有几何和条目不算数：必须真能看见、真能点到
+                #   （2026-09-15 血泪：菜单 rect 全对、条目也在，但祖先 wSkVaW_headerUtilities 的
+                #    opacity:0 把整棵子树变透明 + pointer-events:none 被继承 ⇒ 用户「点了没反应」，
+                #    而只断言 left/right/items 的旧版探针一路绿灯）
+                elif g.get("visibility") == "hidden" or g.get("effectiveOpacity", 1) < 0.9 \
+                        or g.get("pointerEvents") == "none" or not g.get("hitSelf"):
+                    fails.append(
+                        f"{name}看得见却点不到（visibility={g.get('visibility')} "
+                        f"有效opacity={g.get('effectiveOpacity')} pointer-events={g.get('pointerEvents')} "
+                        f"中心命中={g.get('hitTop')}）—— 祖先 opacity:0 的组透明 / pointer-events 继承泄漏？")
                 page.keyboard.press("Escape")
                 page.wait_for_timeout(800)
 
