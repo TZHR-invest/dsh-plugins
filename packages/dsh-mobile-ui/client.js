@@ -509,12 +509,35 @@ window.__ModuleLoader__.load({
 					var frame = findFrame();
 					return frame && frame.children[0] ? frame.children[0] : null;
 				}
+				/* 上游按 aria-label 精确匹配查找侧边栏开关，标签随界面语言变化
+				   （中文 "打开侧边栏" / 英文 "Open sidebar"）。英文界面下查找失败，
+				   抽屉里只剩折叠态的图标 rail：没有会话列表，也没有 New Session，
+				   等于无法选择或加载任何会话。这里改为语言无关的查找：先认标记，
+				   再按候选语言匹配，最后按展开语义兜底，命中即打标记。 */
 				function findSidebarButton(label) {
 					var side = getSidebar();
 					if (!side) return null;
+					var marked = side.querySelector("button[data-dsh-mobile-sidebar-toggle]");
+					if (marked) return marked;
+					var candidates = [label];
+					if (candidates.indexOf("Open sidebar") === -1) candidates.push("Open sidebar");
 					var btns = side.querySelectorAll("button");
-					for (var i = 0; i < btns.length; i++) {
-						if ((btns[i].getAttribute("aria-label") || "") === label) return btns[i];
+					var i, j;
+					for (i = 0; i < btns.length; i++) {
+						var aria = btns[i].getAttribute("aria-label") || "";
+						for (j = 0; j < candidates.length; j++) {
+							if (aria && aria === candidates[j]) {
+								btns[i].setAttribute("data-dsh-mobile-sidebar-toggle", "1");
+								return btns[i];
+							}
+						}
+					}
+					/* 语言都不认识时的语义兜底：折叠器里 aria-expanded="false" 的那个按钮 */
+					for (i = 0; i < btns.length; i++) {
+						if (btns[i].getAttribute("aria-expanded") === "false") {
+							btns[i].setAttribute("data-dsh-mobile-sidebar-toggle", "1");
+							return btns[i];
+						}
 					}
 					return null;
 				}
@@ -541,6 +564,41 @@ window.__ModuleLoader__.load({
 						try { openDrawer(); } catch (e) { /* 忽略 */ }
 					});
 					document.body.appendChild(tabbar);
+				}
+
+				/* 选中会话后收起抽屉。
+				   抽屉宽 min(84vw,320px) 盖住正文：选完会话若不收起，用户看到的是
+				   侧栏而不是刚打开的对话，还要再点一次遮罩。上游不关抽屉，这里补上。
+				   ⚠️ 只在移动端 mq 下生效，桌面端零影响。
+				   ⚠️ 判断依据是行自己的 aria-selected（上游 React 的实时值）：
+				      点分组标题只是展开/折叠工作区，那一行不会变成选中态，抽屉不该收起。
+				   ⚠️ 不能吞掉事件：仅观察，绝不 preventDefault/stopPropagation。 */
+				var DRAWER_AUTOCLOSE_DELAY = 24;
+				function maybeCloseDrawerOnPick(event) {
+					try {
+						if (!drawerOpen || !mq.matches) return;
+						var node = event.target;
+						if (!node || !node.closest) return;
+						var row = node.closest('[class*="sessionRow"],[class*="projectRow"]');
+						if (!row) return;
+						if (row.getAttribute("aria-expanded") !== null) return; /* 分组标题：只展开/折叠 */
+						setTimeout(function () {
+							try {
+								if (!drawerOpen) return;
+								if (row.getAttribute("aria-selected") === "true") {
+									closeDrawer();
+									return;
+								}
+								/* 新建会话：该行是「New Session」，没有 aria-selected，用标题判定 */
+								var text = (row.textContent || "").replace(/\s+/g, " ").trim();
+								if (/^new session/i.test(text) || /^новая сессия/i.test(text)) closeDrawer();
+							} catch (e) { /* 关闭失败不阻塞交互 */ }
+						}, DRAWER_AUTOCLOSE_DELAY);
+					} catch (e) { /* 忽略 */ }
+				}
+				if (!document.__dshMobileDrawerPick) {
+					document.__dshMobileDrawerPick = true;
+					document.addEventListener("click", maybeCloseDrawerOnPick, false);
 				}
 
 				/* ── tabs 行工具按钮（2026-09-14）──────────────────────────────────
@@ -659,7 +717,7 @@ window.__ModuleLoader__.load({
 					if (tabbar) tabbar.style.display = "none";
 					setTabActive("会话");
 					/* 折叠态 sidebar 只有图标 rail，展开以显示会话列表 */
-					var tog = findSidebarButton("打开侧边栏");
+					var tog = findSidebarButton("打开侧边栏") || findSidebarButton("Open sidebar");
 					if (tog) { try { tog.click(); } catch (e) {} }
 				}
 				function closeDrawer() {
