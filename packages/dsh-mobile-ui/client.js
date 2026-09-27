@@ -271,15 +271,21 @@ window.__ModuleLoader__.load({
 			   而容器在 header 里的横坐标随「有无子代理/后台任务」变化 —— 候选方案 right:0 在容器靠右时
 			   可用、靠左时左溢出；fixed 与容器位置无关（实测两种场景都在视口内）。
 			   ⚠️ hash 前缀（QsffPG_ / _1nxmc_）会随 dsh 升级漂移、失效是静默的（退回溢出），
-			   升级后跑 tests/live-probe.py 复核（已覆盖后台任务菜单）。 */
+			   升级后跑 tests/live-probe.py 复核（已覆盖后台任务菜单）。
+			   🔴 2026-09-28 实证（dsh 0.1.7）：_list_1nxmc_ → _list_gzo7u_，且上游改用
+			   `--dsh-menu-anchor` CSS 变量定位 ⇒ 旧选择器整条失配、菜单左溢 61px
+			   （用户报「三个点显示不全」）。已改用**语义锚点**
+			   `[class*=headerUtilities] [role=menu]` —— 只依赖 headerUtilities 这个语义后缀、
+			   不含 hash 前缀；0.1.5 与 0.1.7 双版本实测均生效
+			   （对比脚本 tests/try-menu-fix.py：注入前后 rect 从 [-61,…] 回到 [8,…]）。 */
 			/* ⚠️ popover 的 top 必须落在**触发按钮下方**：菜单弹出后若盖住按钮本身，
 			   用户再点一下（想关掉/重开）时点击落在菜单上 —— 体感就是「点了没反应」
 			   （2026-09-14 用户报「三个点按钮点击没反应」：实测命中率只有 2/6，
 			   菜单 [8,76,374,42] 正好压在 tabs 行的按钮 80..106 上）。
 			   · QsffPG：触发按钮在 header 第二行 42..70 ⇒ top 74
 			   · _1nxmc_（「更多操作」）：触发按钮在 tabs 行 80..106 ⇒ top 122 */
-			"  body.dsh-mobile-ui [class*=QsffPG_menu],body.dsh-mobile-ui [role=menu][class*=_list_1nxmc_]{position:fixed !important;left:8px !important;right:8px !important;width:auto !important;min-width:0 !important;max-width:none !important;max-height:calc(100vh - 150px) !important;overflow:auto !important;top:calc(var(--dsh-mobile-popover-top,74px) + env(safe-area-inset-top,0px)) !important}",
-			"  body.dsh-mobile-ui [role=menu][class*=_list_1nxmc_]{--dsh-mobile-popover-top:122px}",
+			"  body.dsh-mobile-ui [class*=QsffPG_menu],body.dsh-mobile-ui [class*=headerUtilities] [role=menu]{position:fixed !important;left:8px !important;right:8px !important;width:auto !important;min-width:0 !important;max-width:none !important;max-height:calc(100vh - 150px) !important;overflow:auto !important;top:calc(var(--dsh-mobile-popover-top,74px) + env(safe-area-inset-top,0px)) !important}",
+			"  body.dsh-mobile-ui [class*=headerUtilities] [role=menu]{--dsh-mobile-popover-top:122px}",
 			/* ── 手机端 header 瘦身 + 正文占比（2026-09-14，用户反馈「标题栏三行有点乱 / 正文显得窄」）──
 			   实测 390px：header 138px（titleRow 三行）＋ 输入区 272px ⇒ 正文只剩 434px（占屏 51%）。
 			   三行里第三行是「终端打开 / 选择打开方式 / 更多操作 / 打开右侧边栏」——前两个点了是在
@@ -592,7 +598,7 @@ window.__ModuleLoader__.load({
 							   开着就什么都不做 —— 交给上游关掉，真正的 toggle。 */
 							more.addEventListener("pointerdown", function () {
 								try {
-									more.__menuWasOpen = !!document.querySelector("[role=menu][class*=_list_1nxmc_]");
+									more.__menuWasOpen = !!document.querySelector("[class*=headerUtilities] [role=menu]");
 								} catch (err) { more.__menuWasOpen = false; }
 							}, true);
 							more.addEventListener("click", function (e) {
@@ -734,7 +740,7 @@ window.__ModuleLoader__.load({
 							   top:42 全宽后，右上角的汉堡按钮正好压在菜单首行右侧 —— vision 复核截图时发现
 							   「第一行的耗时被按钮遮住」，故菜单开着时也隐藏它） */
 							var popOpen = !!(document.querySelector(
-								"[class*=QsffPG_menu],[role=menu][class*=_list_1nxmc_]"));
+								"[class*=QsffPG_menu],[class*=headerUtilities] [role=menu]"));
 							if (tabbar) {
 								tabbar.style.display = (drawerOpen || settingsOpen || qaOpen || popOpen)
 									? "none" : "";
