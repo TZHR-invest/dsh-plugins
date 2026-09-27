@@ -281,9 +281,19 @@ def run(args) -> int:
         # ② 头部切换器几何
         print(f"切换器：{json.dumps(geom, ensure_ascii=False)}")
         if geom.get("err"):
-            # 「试开的会话都没有子代理」不是回归，是本次**覆盖不到**：记 skip，
-            # 否则每次跑都红、真回归会被淹没（2026-09-28 实测 0.1.5/0.1.7 都如此）。
-            skips.append(f"子代理切换器断言未覆盖：{geom['err']}")
+            # 「试开的会话都没有子代理」= 本次**覆盖不到**，记 skip（否则每次跑都红、真回归被淹没）。
+            #   ⚠️ 但本条**无法区分**两种成因：①本会话真的没有子代理（常态）
+            #     ②上游把触发点改了（改名/换标签）—— 症状完全相同，都是"找不到切换器"。
+            #   ② 的静态判据已核过（2026-09-28，0.1.5 与 0.1.7 的 dsh-client-ui-subagent
+            #   bundle 逐句对照，三处契约一致）：触发点是
+            #     jsxs("button", {className: …trigger|…switcherTrigger, "aria-expanded": open,
+            #                      onKeyDown: ArrowDown → changeOpen(true)})
+            #   关闭在 root 的 navigate：Escape → changeOpen(false, true)。
+            #   ⇒ 复验命令与结论见 docs/dsh-mobile-ui.md §3.1；要**真覆盖**需含子代理的会话
+            #     （本机历史上 0 个：179 会话头部 delegationDepth 全 0、正文 0 个 parentSessionId）
+            #     ⇒ python3 tests/live-probe.py --session "<含子代理的会话标题>"
+            skips.append(f"子代理切换器断言未覆盖（本会话无子代理；**也可能是上游改了触发点**，"
+                         f"判据见 docs/dsh-mobile-ui.md §3.1）：{geom['err']}")
         else:
             if geom["clipped"]:
                 fails.append(f"切换器被 crumbs 裁掉（宽仅 {geom['w']}px，right 超出 crumbs）")
