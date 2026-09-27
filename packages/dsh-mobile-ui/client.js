@@ -718,7 +718,7 @@ window.__ModuleLoader__.load({
 						   class 残留会让面板继续以 fixed 全屏显示（表现为「关不掉」）。
 						   判据用上游按钮 label：面板开着时是「收起右侧边栏」、收起后回到
 						   「打开右侧边栏」。⚠️ 刚打开 1.2s 内不判定（React 还没换 label，会误清）。 */
-						if (rightbarOpen() && Date.now() - rightbarOpenedAt > 1200
+						if (mq.matches && rightbarOpen() && Date.now() - rightbarOpenedAt > 1200
 							&& document.querySelector('button[aria-label="打开右侧边栏"]')) {
 							document.body.classList.remove("dsh-mobile-rightbar");
 						}
@@ -727,6 +727,8 @@ window.__ModuleLoader__.load({
 					} catch (e) { /* 静默 */ }
 				}
 				function openRightbar() {
+					/* 浮层只是**移动端**的替代方案：PC 用上游原生三列布局，插件完全不介入 */
+					if (!mq.matches) return;
 					try {
 						var up = document.querySelector('button[aria-label="打开右侧边栏"]');
 						if (up) up.click();
@@ -738,12 +740,21 @@ window.__ModuleLoader__.load({
 					syncRightbarBtn();
 				}
 				function closeRightbar() {
+					/* ⚠️ 非移动端绝不能点上游按钮（PC 的右侧栏是上游默认可见状态）——只清自己的 class */
+					if (!mq.matches) { resetRightbarOverlay(); return; }
 					try {
 						var up = document.querySelector('button[aria-label="收起右侧边栏"]');
 						if (up) up.click();
 						document.body.classList.remove("dsh-mobile-rightbar");
 					} catch (e) { /* 静默 */ }
 					syncRightbarBtn();
+				}
+				/* 只清插件自己的浮层状态，**绝不触碰上游按钮** —— 用于「非移动端」与「离开移动端」。
+				   ⚠️ 2026-09-28 事故：非移动端分支原先误调 closeRightbar()，而它会在 PC 上点上游
+				   「收起右侧边栏」⇒ 每次 sync（MutationObserver 触发）都把用户本来开着的右侧栏收起，
+				   表现为「PC 端不停打开/关闭右侧栏」。 */
+				function resetRightbarOverlay() {
+					try { document.body.classList.remove("dsh-mobile-rightbar"); } catch (e) { /* 静默 */ }
 				}
 				function toggleRightbar() { if (rightbarOpen()) closeRightbar(); else openRightbar(); }
 				function sync() {
@@ -824,7 +835,7 @@ window.__ModuleLoader__.load({
 							var side2 = getSidebar();
 							if (side2) side2.style.display = "";
 							closeDrawer();
-							closeRightbar();
+							resetRightbarOverlay();   /* PC 端只清插件状态，绝不碰上游右侧栏 */
 							if (tabbar) tabbar.style.display = "none";
 						}
 					} catch (e) { /* 同步失败静默 */ }
