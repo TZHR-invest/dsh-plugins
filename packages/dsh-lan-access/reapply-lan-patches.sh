@@ -290,21 +290,63 @@ else
 fi
 [ -f "$F4" ] && node --check "$F4" 2>/dev/null && echo "  语法 OK"
 
+# ── 判定基准自检（2026-09-28 血泪；**别删**）─────────────────────────────────
+#
+# 为什么必须查：v2/v3 的结论是**委托给 $SRC/patch-webserver.mjs 的退出码**的
+# （0=已是 v3 / 3=旧版）。而"半新半旧"的插件目录里，patcher 可能还是只认 v2 的旧版：
+# 它查见 v2 在位就 exit 0 ⇒ 新脚本把「v2 在位」读成「v3 已有」= **假绿**。
+# 实测（home-wsl 2026-09-28）：package.json/install.sh 已是 0.2.6，但 token-gate.js 是 v2 的
+# 7839B 版、patcher 是旧 6880B ⇒ 报「v3 已有」而实际仍 v2（回环只出 dsh 的纯文本 401）。
+# ⇒ 两道防线：①插件目录自检（能定位到具体哪个文件旧了）；②**不信自述** —— 在**被改的文件**里
+#    复核 patcher 插入的 v3 标记（那才是"到底生效了没"的直接证据）。
+
+# patcher 成功时会写进被改文件的标记（见 patch-webserver.mjs 的 V3 段）
+GATE_V3_INSTALLED_MARK='dsh-lan-access] token gate v3'
+gate_basis_check() {
+  local gate_ok=0 patcher_ok=0
+  if grep -q 'token gate —— 自包含补丁源（v3）' "$SRC/token-gate.js" 2>/dev/null; then gate_ok=1; fi
+  if grep -q 'LAN_GATE_INDEX_PATHS' "$SRC/token-gate.js" 2>/dev/null; then gate_ok=1; fi
+  if grep -q 'token-gate.v2.js' "$SRC/patch-webserver.mjs" 2>/dev/null; then patcher_ok=1; fi
+  if [ "$gate_ok" = 1 ] && [ "$patcher_ok" = 1 ]; then return 0; fi
+  echo "  [失败] 插件目录**半新半旧** ⇒ patcher 的 v2/v3 判定不可信，本步不下结论"
+  if [ "$gate_ok" = 1 ]; then echo "         token-gate.js：v3 ✓"; else echo "         token-gate.js：**不是 v3 版**（$SRC/token-gate.js）"; fi
+  if [ "$patcher_ok" = 1 ]; then echo "         patch-webserver.mjs：v3 patcher ✓"; else echo "         patch-webserver.mjs：**不是 v3 patcher**（$SRC/patch-webserver.mjs）"; fi
+  echo "         处置：用 0.2.7+ 的 install.sh 重装 dsh-lan-gateway（须含 token-gate.js /"
+  echo "               token-gate.v2.js / patch-webserver.mjs 三个文件），再跑本脚本"
+  return 1
+}
+
 # ── 5/6 webserver 令牌门卫补丁 ─────────────────────────────────────────────
 echo "== 5/6 webserver 令牌门卫补丁 =="
 FW="$ROOT/node_modules/@deepseek-ai/dsh-host-webserver/lib/index.js"
 if [ ! -f "$SRC/patch-webserver.mjs" ]; then
   echo "  [缺失] $SRC/patch-webserver.mjs（插件源码不完整，请重新安装 dsh-lan-gateway）"
+elif ! gate_basis_check; then
+  # --check 按本脚本约定恒 exit 0（靠读输出判断）；apply 则**拒绝继续**，
+  # 免得在半新半旧的目录上得出错误结论、或做出错误改动。
+  [ "$MODE" = "--check" ] || exit 1
 elif [ "$MODE" = "--check" ]; then
   node "$SRC/patch-webserver.mjs" "$FW" --check
   case $? in
-    0) echo "  [已有] webserver 令牌门卫 v3" ;;
+    0)
+      if grep -q "$GATE_V3_INSTALLED_MARK" "$FW" 2>/dev/null; then
+        echo "  [已有] webserver 令牌门卫 v3"
+      else
+        echo "  [失败] patcher 声称「v3 已有」，但被改文件里**没有 v3 插入标记** ⇒ 该结论不可信"
+        echo "         被改文件：$FW"
+        echo "         处置：用 0.2.7+ 的 install.sh 重装 dsh-lan-gateway 后重跑本脚本"
+      fi ;;
     3) echo "  [旧版] webserver 令牌门卫（运行本脚本即可就地升级 v3）" ;;
     *) echo "  [缺失] webserver 令牌门卫" ;;
   esac
 else
   if node "$SRC/patch-webserver.mjs" "$FW"; then
-    echo "  [已完成] webserver 令牌门卫 v3（未授权请求 = 401 登录页，含回环）"
+    if grep -q "$GATE_V3_INSTALLED_MARK" "$FW" 2>/dev/null; then
+      echo "  [已完成] webserver 令牌门卫 v3（未授权请求 = 401 登录页，含回环）"
+    else
+      echo "  [失败] 打补丁返回成功，但被改文件里没有 v3 插入标记 ⇒ 请人工检查 $FW"
+      [ "$MODE" = "--check" ] || exit 1
+    fi
   else
     echo "  [失败] webserver 令牌门卫——请人工处理"
   fi
