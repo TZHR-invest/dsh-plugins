@@ -1,3 +1,8 @@
+# ⚠️ 探针/单测**不进包**（2026-09-28 定案）：它们是仓库作用域的开发者工具（README 里的
+#    调用路径本就是 `packages/<name>/tests/…` / 需要 scripts/ + playwright + 活的 dsh），
+#    而 npm 包含 tests/ 会让**任何一次探针改动**都被 audit-npm-drift 判成漂移、被迫发一次
+#    对使用者零意义的版本（当天实测踩到）。仓库里仍在，clone 即可用。
+tests/
 # 备份/临时文件不进包
 # ⚠️ 2026-09-14：`install.sh.bak-*` 曾被 npm pack 收进 0.2.6 预检（21kB 垃圾进包），
 #    本包原本没有 .npmignore，任何就地备份都会跟着发布 ⇒ 加这条兜底。

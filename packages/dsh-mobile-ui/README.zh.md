@@ -28,7 +28,7 @@ bash install.sh --uninstall  # 卸载
 ```bash
 bash scripts/build.sh                       # 语法 + 契约预检（含 classic-script 校验）
 bash scripts/package.sh                     # 打包 dist/dsh-mobile-ui-install.tar.gz
-python3 tests/mobile-layout-probe.py        # 移动端布局回归探针（提问卡片 + 输入区操作行）
+python3 tests/mobile-layout-probe.py        # 移动端布局回归探针（⚠️ 需在仓库内；npm 包只含运行时 bundle）
 ```
 
 **回归探针**（`tests/mobile-layout-probe.py`）：用真实上游 CSS + 真实 DOM 嵌套 +

@@ -23,10 +23,17 @@ python3 scripts/secret-scan.py --secrets-file ~/.meshdeck-secrets.md   # 非零�
 风险点很具体：各插件 `install.sh` 会往 `cordis.patch.yml` 写 metaso / memory-recall / opencodex
 三把 key —— 一次「把本机 patch 当模板拷进仓库」就会把它们一起公开（历史已逐值 `git log -S` 验过干净）。
 
-**📌 待议（2026-09-28）**：`dsh-mobile-ui` 的 npm 包**含 `tests/`** ⇒ 每次动探针（纯测试改动、对使用者
-零影响）都会被 audit 判成漂移、被迫发版 —— 当天实测踩到一次（**0.2.10 就是为 `tests/live-probe.py` 补发的**）。
-两个方向：①**给 `.npmignore` 加 `tests/`**（漂移闸门的覆盖范围回到「出货内容」，摩擦消失；代价＝外部用户拿不到探针，
-仓库里仍有）；②维持现状、每次照发。倾向①，但它会改变已发布包的内容，**需先拍板**。
+**✅ 已定案（2026-09-28）：探针/单测不进包。** 两个含 `tests/` 的包都加了 `.npmignore: tests/` 并升版补发
+（`dsh-mobile-ui` **0.2.11**：22 → **11** 个文件；`dsh-lan-gateway` **0.2.8**：15 → **14**）。三条理由：
+
+1. README 里那些「开发与验证」命令本来就引用**只存在于仓库**的路径（`scripts/build.sh`、
+   `packages/<name>/tests/…`）⇒ 排除 tests **不破坏任何原本可用的用法**（mobile-ui 两处探针条目已标注「需在仓库内」）；
+2. tests 进包会让**任何一次探针改动**都被本审计判成漂移、被迫发一次对使用者零意义的版本
+   —— 当天实测踩到，`0.2.10` 就是为 `tests/live-probe.py` 补发的；
+3. `audit-npm-drift.sh` 自己的注释就把「**测试**」列为**预期只存在于仓库**的文件（「仅仓库…只提示不判错」）。
+
+探针仍在公开仓库里，clone 即可用。**⚠️ 复盘教训**：`dsh-mobile-ui` 从 0.2.3 起就一直在往包里塞 11 个探针，
+期间每次改探针都在悄悄制造"漂移"，直到那天才被 audit 显式抓到 —— 这也是"闸门要覆盖出货内容、别覆盖开发产物"的由来。
 
 **⚠️ 血泪教训（2026-09-11，一次查出 4 处）**：多个修复提交只改了代码、**没升 `version`**，
 而 **npm 不允许覆盖已发布版本** → 仓库修好了，npm 上仍是坏代码。实测三例：
@@ -52,7 +59,9 @@ python3 scripts/secret-scan.py --secrets-file ~/.meshdeck-secrets.md   # 非零�
 | `dsh-lan-gateway` | **0.2.5** | WS 响应压缩（permessage-deflate，慢链路 4.80x：1.20MB→256KB；须重启 dsh web）+ 部署/恢复脚本三处静默缺口修复（install/reapply 在 tarball 根目录、写入式文件清单漏补丁源、reapply 安装根定位在 office_64g 失效）。**2026-09-14 已发 npm 并逐文件 md5 核对：13/13 与仓库一致** |
 | `dsh-lan-gateway` | 0.2.4 | 令牌门卫 v3：回环不再短路（本机 `127.0.0.1` 也出登录页 —— v2 下本机只能看到 host browserAuth 的纯文本 401）+ index-401 兜底（cookie 过期 / 签名密钥轮换时同样换登录页）；补 16 例单测 + `token-gate.v2.js` 留档（就地升级匹配基准） |
 | `dsh-lan-gateway` | 0.2.3 | 安装器不再静默关闭响应压缩（loader patch 整体替换 config；慢链路 11.19MB→3.95MB） |
-| `dsh-mobile-ui` | **0.2.10** | **探针修复补发**（只是 `tests/live-probe.py` 变了 —— 0.2.9 发布后我又改了它，而 npm 包**含 tests/**，于是 audit 立刻报 `✗ 内容不同: tests/live-probe.py`）。内容：探针新增 `reveal_sessions()`（dsh 抽屉是**工作区树**，home-wsl 落在只含"当前空会话"的工作区 ⇒ 旧写法报「没有可打开的会话」，而机器完全正常）+ 判据改用"未选中行"。**已发 npm**（逐文件核对）。**⚠️ 摩擦点**：只要 tests/ 继续进包，每次动探针都要发版 —— 见 §0 的待议项。 |
+| `dsh-mobile-ui` | **0.2.11** | **探针不再进包**（见 §0 定案）：`.npmignore` 加 `tests/` ⇒ 22 → 11 个文件（只剩运行时 bundle + README×2 + assets×4 + install.sh + cordis.patch.yml + package.json）；README 两处探针条目改为「需在仓库内」。`npm pack --dry-run` 预检 tests 命中 0 后再发。**已发 npm 并逐文件核对**。 |
+| `dsh-lan-gateway` | **0.2.8** | 同上（`tests/token-gate.test.mjs` 不再进包，15 → 14 个文件），与 0.2.7 的假绿加固同批发布。**已发 npm 并逐文件核对**。 |
+| `dsh-mobile-ui` | **0.2.10** | **探针修复补发**（只是 `tests/live-probe.py` 变了 —— 0.2.9 发布后我又改了它，而 npm 包**含 tests/**，于是 audit 立刻报 `✗ 内容不同: tests/live-probe.py`）。内容：探针新增 `reveal_sessions()`（dsh 抽屉是**工作区树**，home-wsl 落在只含"当前空会话"的工作区 ⇒ 旧写法报「没有可打开的会话」，而机器完全正常）+ 判据改用"未选中行"。**已发 npm**（逐文件核对）。**⚠️ 摩擦点**已由 0.2.11 解决（探针不再进包，见 §0 定案）。 |
 | `dsh-mobile-ui` | **0.2.9** | **三笔行为提交漏升版本的补发发布** —— 仓库与 npm 双双停在 `0.2.8` 却**内容不同**，正是 §0 那类"号一样、内容不一样"的漂移（`audit-npm-drift.sh` 实测：`✗ 内容不同: client.js`）。三笔漏升的改动：①`675e608` 菜单定位改**语义锚** `[class*=headerUtilities] [role=menu]`（4 处硬编码 `_list_1nxmc_` 全是漂移地雷：0.1.7 已变 `_list_gzo7u_`，失效**静默**且指向错误方向）；②`fd416a5` 新增**右侧边栏入口**（▥，工作区文件/终端）—— 上游单列布局把 `rightbarCol` 压成 `height:0`，移动端原本够不着；③`ef693f7` 修 **PC 端「不停打开/关闭右侧栏」**（非移动端分支误调 `closeRightbar()`，每次 sync 都收起用户开着的侧栏）。配套 `tests/live-probe.py` 六类探针自身故障修复（过粗 guard / JS `el.click()` / 循环漏关抽屉 / 选择器漂移 / scrim 罩住 ☰ / 按需渲染缺失）。**2026-09-28 发布**：GET 轮询第 30 次（≈300s）产物就绪，`latest=0.2.9`，`audit-npm-drift.sh` 逐文件 **22/22 一致**（仅 `.npmignore` 不在包内，属预期）；`dist/` tarball 已重建并解包核对（`version=0.2.9`、`client.js` md5 `2852de7a…` 与仓库一致）；5 台机器部署副本同为该 md5 ⇒ **三渠道对齐**。**⚠️ 教训复现**：这三笔提交都没升 `version`，而**纯版本号自检对此完全无感**，只有逐文件比对的 `audit-npm-drift.sh` 能发现 —— 行为变更必须同提交升版（§0）。 |
 | `dsh-mobile-ui` | **0.2.8** | 「点三个点还是没反应」的**最终真根因**（用户第 4 次反馈后远程取证定位）：**自己人挖的坑 —— `opacity:0` 是「组不透明度」**。0.2.5 为给 header 瘦身，把 `[class*=wSkVaW_headerUtilities]` 设成 `position:absolute;opacity:0;pointer-events:none`，而上游「更多操作」菜单**恰好挂在这棵子树里**（祖先链 `menu → span._root_1nxmc_ → div → headerUtilities`）⇒ 菜单**弹出来了、几何全对**（实测 `rect=[8,122,396,42]`、条目「下载 Session 日志」齐全），却被祖先的组透明**整棵变不可见**，还继承 `pointer-events:none` ⇒ **看不见 + 点不动**。修法＝改用 `visibility:hidden`（同样不占布局、rect 照常可测；`display:none` 会算出 0×0，2026-09-14 已踩过），并给该子树里的 `[role=menu]/[class*=_list_1nxmc_]/[class*=_portal_]/[class*=QsffPG_menu]` 加 `visibility:visible`（**`visibility` 可被后代覆盖，`opacity` 不行**）。配套探针加固：`POPOVER` 断言从「只有几何与条目数」升级为**必须能看见能点到**（祖先链有效 opacity 逐级相乘 < 0.9 / `visibility!=visible` / `pointer-events:none` / `elementFromPoint(菜单中心)` 不属于菜单 ⇒ 任一命中即失败）——旧断言在菜单全透明时**一路绿灯**，正是连报三轮的原因。**未发 npm（令牌 401，见下）**，tarball 与 5 台机器已同步。**后补：2026-09-15 换新令牌后已发 npm**（GET 轮询第 16 次就绪，仓库 vs 产物 **13/13 文件 md5 一致**、`latest=0.2.8`；0.2.7 因令牌失效跳过，npm 从 0.2.6 直接跳到 0.2.8）|
 | `dsh-mobile-ui` | **0.2.7** | 用户第三次报「点折叠左边的三个点还是没反应」的**真根因**：不是按钮、不是竞态，而是上游**右侧栏拖拽把手的隐形死区**——`pI_x6G_handle`（`dsh-client-ui-layout`）是 `position:absolute;top:0;bottom:0;width:8px;z-index:11;pointer-events:auto`，右侧栏折叠后 `rightbarCol` 缩成 `height:0`（`rect=[0,915,412,0]`）**但把手不跟着消失**，仍以固定 `left`（实测 276px）**贯穿整个视口高度**（0→915）⇒ x∈[276,284) 这一整列 8px 的 tap 全被吃掉（手机没有 col-resize，用户只感到「点了没反应」，正文按钮/输入框同样被挡）。工具组右对齐（⋯ 中心 = 视口宽−134）⇒ 只在 **410–417px** 这段视口压住 ⋯ 中心，**所以「390px 测着全好、手机却点不动」**（⭐ 单宽度探针天然漏检）。修法：`[class*=pI_x6G_handle]{display:none}`（移动端不需要 col-resize）+ 工具组 `position:relative;z-index:30` 第二道保险；`tests/live-probe.py` 新增 **12 档宽度扫描**（把手残留/按钮被覆盖/412px ⋯ 开合）——另用独立 14 档扫描证实全通过（含此前全灭的 410–418px）。**⚠️ npm 未发布**：本轮 npm 粒度令牌失效（`whoami` 返回 `{}`、publish 404），npm 上停在 0.2.6；其余两条渠道已到位 |
