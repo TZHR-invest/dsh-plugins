@@ -28,6 +28,7 @@ trap 'rm -rf "$WORK"' EXIT
 
 drift=0
 checked=0
+skipped=""
 for d in "$REPO"/packages/*/; do
   name=$(basename "$d")
   [ -n "$ONLY" ] && [ "$name" != "$ONLY" ] && continue
@@ -37,6 +38,7 @@ for d in "$REPO"/packages/*/; do
   echo "═══ $name  仓库=$rv npm=${nv:-未发布} ═══"
   if [ -z "$nv" ]; then
     echo "  [跳过] npm 上没有这个包（尚未发布）"
+    skipped="$skipped $name"
     continue
   fi
   if [ "$rv" != "$nv" ]; then
@@ -91,4 +93,10 @@ if [ "$drift" != "0" ]; then
   echo "❌ 发现漂移：仓库与 npm **内容/版本不一致** —— 处置＝升 version + bash scripts/package.sh + npm publish + 重跑本脚本"
   exit 1
 fi
-echo "✅ 已核 $checked 个包：仓库与 npm 逐文件一致"
+# ⚠️ 0 个包被核 = **假绿**（2026-09-28 实测：`audit-npm-drift.sh dsh-lan-gateway` 传了 npm 包名，
+#    而筛选比的是**目录名** dsh-lan-access ⇒ 一个都没核，却照样打印"一致"）。
+if [ "$checked" = "0" ]; then
+  echo "❌ 没有核到任何包 ⇒ 结论无效。筛选参数用的是**目录名**（如 dsh-lan-access），不是 npm 包名（如 dsh-lan-gateway）"
+  exit 1
+fi
+echo "✅ 已核 $checked 个包：仓库与 npm 逐文件一致${skipped:+（另有未发布被跳过:$skipped）}"
