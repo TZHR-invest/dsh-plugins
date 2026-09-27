@@ -23,6 +23,11 @@ python3 scripts/secret-scan.py --secrets-file ~/.meshdeck-secrets.md   # 非零�
 风险点很具体：各插件 `install.sh` 会往 `cordis.patch.yml` 写 metaso / memory-recall / opencodex
 三把 key —— 一次「把本机 patch 当模板拷进仓库」就会把它们一起公开（历史已逐值 `git log -S` 验过干净）。
 
+**📌 待议（2026-09-28）**：`dsh-mobile-ui` 的 npm 包**含 `tests/`** ⇒ 每次动探针（纯测试改动、对使用者
+零影响）都会被 audit 判成漂移、被迫发版 —— 当天实测踩到一次（**0.2.10 就是为 `tests/live-probe.py` 补发的**）。
+两个方向：①**给 `.npmignore` 加 `tests/`**（漂移闸门的覆盖范围回到「出货内容」，摩擦消失；代价＝外部用户拿不到探针，
+仓库里仍有）；②维持现状、每次照发。倾向①，但它会改变已发布包的内容，**需先拍板**。
+
 **⚠️ 血泪教训（2026-09-11，一次查出 4 处）**：多个修复提交只改了代码、**没升 `version`**，
 而 **npm 不允许覆盖已发布版本** → 仓库修好了，npm 上仍是坏代码。实测三例：
 
@@ -104,6 +109,10 @@ for d in packages/*/; do n=$(basename $d); r=$(node -p "require('./$d/package.js
 bash scripts/audit-npm-drift.sh            # 全部包；非零退出 = 有漂移，先补发再说别的
 bash scripts/audit-npm-drift.sh dsh-mobile-ui
 ```
+
+**⚠️ 筛选参数是「目录名」（`dsh-mobile-ui` / `dsh-lan-access`），不是 npm 包名**（`dsh-lan-gateway`）。
+2026-09-28 实测：传成 npm 包名时一个包都没核，脚本却打印「✅ 已核 0 个包 … 一致」 —— 现已修为 `checked==0` 直接 ❌
+（未发布被跳过的包也会显式列进汇总）。
 
 **✅ 2026-09-28 起它已在 CI 里自动跑**（`.github/workflows/npm-drift.yml`，push/PR/手动触发）——
 此前它"只被文档提到、没有任何自动化在跑"，于是 0.2.8 那次漂移**活了 14 天**才被发现。
