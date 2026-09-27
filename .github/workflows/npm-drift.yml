@@ -1,0 +1,31 @@
+name: npm-drift
+
+# ⚠️ 为什么 CI 里必须有这一条（2026-09-28 定案）
+# ------------------------------------------------------------------
+# `scripts/audit-npm-drift.sh` 能把「仓库与 npm **同版本号、不同内容**」抓出来，
+# 但它此前**只被文档提到、没有任何自动化在跑** ⇒ 2026-09-28 实测：三笔行为提交
+# （675e608 菜单语义锚 / fd416a5 右侧栏入口 / ef693f7 PC 端不停开合修复）都没升 version，
+# 仓库与 npm 双双停在 0.2.8 却内容不同，**漂移活了 14 天**才被发现（补发 0.2.9 才对齐）。
+#
+# 红 = 下面两件事之一（两件都是真问题，没有误报——它比的是**已提交内容 vs 已发布产物**）：
+#   ① 改了 `client.js`/`install.sh`/`*.mjs` 等**出货文件却没升 version**
+#      ⇒ npm 上仍是旧代码，外部用户装到的是坏的（历史已撞 4 次：lan-gateway / metaso / vision / mobile-ui）
+#   ② 升了 version 但**还没发 npm** ⇒ 修复发不出去
+# 变绿 = 已发布且逐文件一致。**发布流程见 docs/publishing.md §0**。
+#
+# 为什么不用 pre-push 钩子代替（别回退成钩子）：
+#   钩子不随仓库分发（.git/hooks 不进版本控制，协作者/新克隆都没有）、对**纯注释改动误报**
+#   （而 §0 明确"只改注释可不升版"）、且 `--no-verify` 一绕即过、留下"有闸门"的错觉。
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 仓库源码 vs npm 产物（拉 tarball 逐文件 md5）
+        # 只读公开 registry，不需要任何凭据（发布本身仍需本地令牌，见 docs/publishing.md）
+        run: bash scripts/audit-npm-drift.sh
