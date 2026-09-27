@@ -79,6 +79,13 @@ SESSION_ROWS_JS = "[...document.querySelectorAll('[role=treeitem][class*=session
 SESSION_LABELS = """(needle) => %s
   .map(r => (r.textContent || '').trim())
   .filter(t => !needle || t.includes(needle))""" % SESSION_ROWS_JS
+# ⚠️ 当前会话那一行带 `selected` 类 —— 点它等于没点。判断"有没有可打开的会话"必须排除它，
+#   否则「只有一个当前会话的工作区」会被误判成"有会话可开"（2026-09-28 home-wsl 实测踩到）。
+SESSION_LABELS_UNSELECTED = """(needle) => %s
+  .filter(r => !String(r.className || '').includes('selected'))
+  .map(r => (r.textContent || '').trim())
+  .filter(t => !needle || t.includes(needle))""" % SESSION_ROWS_JS
+
 # ⚠️ 这里曾有个 SESSION_CLICK（JS `el.click()`）—— **已删除、勿再加回**：它在会话行上
 #   时灵时不灵（2026-09-28 实测连点 5 次只有 2 次真跳转），会把「没点动」伪装成
 #   「已进入会话」，于是后面所有断言都在测首页 ⇒ 报出一串**指向错误方向**的假回归。
@@ -181,6 +188,38 @@ def on_session_page(page):
             return h ? getComputedStyle(h).display : null; })() })""")
 
 
+def reveal_sessions(page, needle="", max_expand=4):
+    """确保抽屉里有**当前会话以外**的会话行可点 —— 工作区折叠时先展开它（抽屉需已开）。
+
+    ⚠️ 落地状态因机而异（2026-09-28 home-wsl 实测踩到）：dsh 的抽屉是**工作区树**
+    （每个工作区行带 `aria-expanded`）。ai-agent/devbox 落在已展开的工作区、直接有会话行；
+    而 home-wsl 落在只含「当前那个空会话」的工作区 —— 48 个历史会话全在**折叠**的工作区里
+    ⇒ 旧写法「开抽屉 → 读行」只看到 1 行、且正是当前会话，点它等于没点，
+    探针报「会话列表里没有可打开的会话」，**而机器其实完全正常**。
+    判据必须用**未选中**行数（`selected` 类），不是行数本身。
+    """
+    for _ in range(max_expand):
+        unsel = page.evaluate(SESSION_LABELS_UNSELECTED, needle)
+        if unsel:
+            return unsel
+        box = page.evaluate("""(needle) => {
+            const cands = [...document.querySelectorAll('[role=treeitem]')]
+              .filter(e => !String(e.className || '').includes('sessionRow')
+                        && e.getAttribute('aria-expanded') === 'false'
+                        && (!needle || (e.innerText || '').includes(needle)));
+            if (!cands.length) return null;
+            const e = cands[0];
+            e.scrollIntoView({block: 'nearest'});
+            const r = e.getBoundingClientRect();
+            if (r.width <= 0 || r.height <= 0) return null;
+            return [r.left + r.width / 2, r.top + r.height / 2]; }""", needle)
+        if box is None:
+            return []
+        page.touchscreen.tap(box[0], box[1])
+        page.wait_for_timeout(2000)
+    return page.evaluate(SESSION_LABELS_UNSELECTED, needle)
+
+
 def run(args) -> int:
     from playwright.sync_api import sync_playwright
 
@@ -204,6 +243,7 @@ def run(args) -> int:
         # ① 逐个试开会话，直到找到一个**有子代理**的（列表里多数会话没有切换器）
         open_drawer(page)
         page.wait_for_timeout(1300)
+        reveal_sessions(page, args.session or "")   # 工作区折叠时先展开（否则只会看到当前会话那行）
         labels = page.evaluate(SESSION_LABELS, args.session or "")
         ensure_closed(page)                       # 幂等关抽屉（已关则不点，免得误触）
         page.wait_for_timeout(1000)
@@ -216,6 +256,7 @@ def run(args) -> int:
             page.wait_for_timeout(1200)
             # ⚠️ 每次都要重新读列表：点开其它工作区的会话会切换工作区，会话列表随之整批变化
             #   （按索引点会点错行 —— 必须"读当下这一行的文本 → 再按该文本点")
+            reveal_sessions(page, args.session or "")
             rows_now = page.evaluate(SESSION_LABELS, args.session or "")
             # ⚠️⚠️ 每个出口都必须先关抽屉！上面刚 open_drawer 过，直接 break/continue 会把
             #   **开着的抽屉**留给后面的断言：抽屉宽 320px，③b 点的「后台任务」在 x≈146..270
