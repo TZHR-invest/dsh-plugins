@@ -19,6 +19,7 @@ WIDTHS = [320, 360, 375, 390, 412, 430]
 BTNS = [
     ("#dsh-mobile-more-proxy", "⋯"),
     ("#dsh-mobile-fold-composer", "▤"),
+    ("#dsh-mobile-rightbar-toggle", "▥右侧栏"),
     ("#dsh-mobile-tab-menu", "☰"),
 ]
 
@@ -135,7 +136,7 @@ with sync_playwright() as p:
     print(f"base={BASE}  会话={title}\n")
 
     problems = []
-    print(f"{'宽度':>5} | {'⋯ ⋯按钮':^26} | {'▤ 折叠':^26} | {'☰ 抽屉':^26}")
+    print(f"{'宽度':>5} | " + " | ".join(f"{n:^26}" for _, n in BTNS))
     for w in WIDTHS:
         page.set_viewport_size({"width": w, "height": 880})
         page.wait_for_timeout(2200)      # 等插件 resize sync
@@ -163,7 +164,7 @@ with sync_playwright() as p:
             cells.append(f"{r[0]},{r[1]} {r[2]}x{r[3]}" + (" ⚠ " + ";".join(flags) if flags else " ✓"))
             if flags:
                 problems.append(f"{w}px: {it['name']} → " + "; ".join(flags))
-        print(f"{w:>5} | {cells[0][:26]:^26} | {cells[1][:26]:^26} | {cells[2][:26]:^26}")
+        print(f"{w:>5} | " + " | ".join(f"{c[:26]:^26}" for c in cells))
         if d["group"]:
             g = d["group"]
             print(f"        └ 工具组 pos={g['pos']} left={g['left']} right={g['right']} rect={g['rect']} cls={g['cls']}")
@@ -174,5 +175,5 @@ with sync_playwright() as p:
         for x in problems:
             print("   - " + x)
         sys.exit(1)
-    print("✅ 全部宽度下三个按钮均完整、可见、可点")
+    print("✅ 全部宽度下所有工具按钮均完整、可见、可点")
     ctx.close(); b.close()

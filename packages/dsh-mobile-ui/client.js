@@ -289,7 +289,7 @@ window.__ModuleLoader__.load({
 			/* ── 手机端 header 瘦身 + 正文占比（2026-09-14，用户反馈「标题栏三行有点乱 / 正文显得窄」）──
 			   实测 390px：header 138px（titleRow 三行）＋ 输入区 272px ⇒ 正文只剩 434px（占屏 51%）。
 			   三行里第三行是「终端打开 / 选择打开方式 / 更多操作 / 打开右侧边栏」——前两个点了是在
-			   **服务器上**开终端（手机上什么也看不到）、右侧边栏早被本插件隐藏（点了空白），
+			   **服务器上**开终端（手机上什么也看不到）、右侧边栏自 2026-09-28 起改由工具组 ▥ 以浮层打开（此前被本插件隐藏、点了空白），
 			   只有「更多操作」（下载 Session 日志）有用。处理：
 			     ① 整行隐藏（行空掉后 header 少 32px）；
 			     ② 「更多操作」改由**插件注入到 tabs 行空白处的按钮代理**（点击转发给上游按钮，
@@ -348,6 +348,12 @@ window.__ModuleLoader__.load({
 			   JS 会强制展开（见 sync 里的 qaOpen 分支），否则用户看不到问题。 */
 			"  body.dsh-mobile-ui.dsh-mobile-composer-hidden [class*=composerSeat],body.dsh-mobile-ui.dsh-mobile-composer-hidden [class*=composerStack],body.dsh-mobile-ui.dsh-mobile-composer-hidden [class*=uV2eYG_root]{display:none !important}",
 			"  body.dsh-mobile-ui #dsh-mobile-tab-tools button.dsh-mobile-on{background:var(--dsw-specific-selector,rgba(255,255,255,.12)) !important;color:var(--dsw-alias-label-primary,rgba(255,255,255,.9)) !important}",
+			/* ── 右侧边栏（工作区文件/终端）以浮层呈现（2026-09-28 新增，用户要「打开工作区文件的按钮」）──
+			   上游的「打开右侧边栏」按钮与 rightbarCol 都在，但本插件为拿正文宽度把 frame 改成单列
+			   （minmax(0,1fr)）⇒ rightbarCol 落到第二行且 height:0（实测 rect=[0,839,412,0]），
+			   点了也是空白。故给入口按钮 + 这条规则：打开时把 rightbarCol 提成覆盖整屏的浮层
+			   （不挤压正文），关闭仍走上游自带的「收起右侧边栏」（面板右上角，实测 rect=[378,10,28,28]）。 */
+			"  body.dsh-mobile-ui.dsh-mobile-rightbar [class*=rightbarCol]{position:fixed !important;inset:0 !important;width:auto !important;height:auto !important;z-index:2147482950 !important;display:block !important;background:var(--dsw-alias-bg-layer-1,#16171b) !important}",
 			/* 输入框聚焦反馈 */
 			"  body.dsh-mobile-ui textarea:focus,body.dsh-mobile-ui [class*=input]:focus-within{outline:none;box-shadow:0 0 0 2px var(--dsw-alias-brand-primary,rgba(79,124,255,.45))}",
 			/* 消息流操作按钮（复制/反馈/分享）触摸目标提升。
@@ -636,8 +642,22 @@ window.__ModuleLoader__.load({
 									openDrawer();
 								} catch (err) { /* 静默 */ }
 							});
+							/* 右侧边栏（工作区文件/终端）入口 —— 见 CSS 段说明 */
+							var panelBtn = document.createElement("button");
+							panelBtn.type = "button";
+							panelBtn.id = "dsh-mobile-rightbar-toggle";
+							panelBtn.setAttribute("aria-label", "工作区文件");
+							panelBtn.innerHTML = "<svg viewBox='0 0 24 24'><rect x='3' y='4' width='18' height='16' rx='2'/><path d='M14 4v16'/></svg>";
+							panelBtn.addEventListener("click", function (e) {
+								try {
+									e.preventDefault();
+									e.stopPropagation();
+									toggleRightbar();
+								} catch (err) { /* 静默 */ }
+							});
 							box.appendChild(more);
 							box.appendChild(fold);
+							box.appendChild(panelBtn);
 							box.appendChild(menuBtn);
 							tabs.appendChild(box);
 						}
@@ -681,6 +701,51 @@ window.__ModuleLoader__.load({
 					if (tabbar) tabbar.style.display = "";
 				}
 
+				/* ── 右侧边栏（工作区文件/终端）开关（2026-09-28 新增）──────────────────────────
+				   用户要「打开工作区文件的按钮」。上游按钮与面板都在，但本插件为拿正文宽度把 frame 改成单列
+				   ⇒ rightbarCol 落到第二行且 height:0（实测 rect=[0,839,412,0]），点了也是空白。
+				   做法：代理上游「打开右侧边栏」→ 给 body 加 class → CSS 把 rightbarCol 提成覆盖整屏的浮层
+				   （不挤压正文）；关闭走上游自带的「收起右侧边栏」（面板右上角）。
+				   ⚠️ 上游按钮 label 随状态变（打开 ⇄ 收起），且 hash 类名会漂移 ⇒ 一律按 aria-label 精确选。 */
+				var rightbarOpenedAt = 0;   /* 打开时刻，用于避开 React 尚未更新 label 的窗口 */
+				function rightbarOpen() {
+					try { return document.body.classList.contains("dsh-mobile-rightbar"); } catch (e) { return false; }
+				}
+				function syncRightbarBtn() {
+					try {
+						/* 双向同步（2026-09-28 实测补）：用户可能直接点面板内上游自带的
+						   「收起右侧边栏」关闭 —— 那时我们的浮层 class 必须跟着清掉，否则
+						   class 残留会让面板继续以 fixed 全屏显示（表现为「关不掉」）。
+						   判据用上游按钮 label：面板开着时是「收起右侧边栏」、收起后回到
+						   「打开右侧边栏」。⚠️ 刚打开 1.2s 内不判定（React 还没换 label，会误清）。 */
+						if (rightbarOpen() && Date.now() - rightbarOpenedAt > 1200
+							&& document.querySelector('button[aria-label="打开右侧边栏"]')) {
+							document.body.classList.remove("dsh-mobile-rightbar");
+						}
+						var b = document.getElementById("dsh-mobile-rightbar-toggle");
+						if (b) b.classList.toggle("dsh-mobile-on", rightbarOpen());
+					} catch (e) { /* 静默 */ }
+				}
+				function openRightbar() {
+					try {
+						var up = document.querySelector('button[aria-label="打开右侧边栏"]');
+						if (up) up.click();
+						document.body.classList.add("dsh-mobile-rightbar");
+						rightbarOpenedAt = Date.now();
+						/* 面板在被 display 期间没算过尺寸 ⇒ 触发一次 resize 让它重新布局 */
+						setTimeout(function () { try { window.dispatchEvent(new Event("resize")); } catch (e) {} }, 350);
+					} catch (e) { /* 静默 */ }
+					syncRightbarBtn();
+				}
+				function closeRightbar() {
+					try {
+						var up = document.querySelector('button[aria-label="收起右侧边栏"]');
+						if (up) up.click();
+						document.body.classList.remove("dsh-mobile-rightbar");
+					} catch (e) { /* 静默 */ }
+					syncRightbarBtn();
+				}
+				function toggleRightbar() { if (rightbarOpen()) closeRightbar(); else openRightbar(); }
 				function sync() {
 					try {
 						if (mq.matches) {
@@ -747,6 +812,7 @@ window.__ModuleLoader__.load({
 							}
 							/* tabs 行工具按钮（更多操作代理 + 折叠输入区）—— React 重渲染后重建 */
 							ensureTabTools();
+							syncRightbarBtn();
 						} else {
 							document.body.classList.remove("dsh-mobile-ui");
 							qaOpen = false;
@@ -758,6 +824,7 @@ window.__ModuleLoader__.load({
 							var side2 = getSidebar();
 							if (side2) side2.style.display = "";
 							closeDrawer();
+							closeRightbar();
 							if (tabbar) tabbar.style.display = "none";
 						}
 					} catch (e) { /* 同步失败静默 */ }
