@@ -6,6 +6,7 @@
 #   bash install.sh --plugin dsh-web-search-metaso [--src <源码目录>]
 #                 [--profile web|headless]
 #                 [--metaso-api-key <mk-xxx> | --metaso-api-key-env <ENV>]
+#                 [--metaso-fallback-api-key <mk-xxx>]   # 主 key 额度耗尽时自动回退用
 #                 [--metaso-scope webpage|document|paper|image|video|podcast]
 #                 [--no-switch] [--check | --smoke | --restart | --uninstall]
 #
@@ -33,6 +34,7 @@ SRC=""
 PROFILE="web"
 API_KEY=""
 API_KEY_ENV=""
+FALLBACK_API_KEY=""
 SCOPE="webpage"
 SWITCH="1"
 MODE="apply"
@@ -52,12 +54,14 @@ while [ $i -lt ${#ARGS[@]} ]; do
     --profile=*) PROFILE="${arg#--profile=}" ;;
     --metaso-api-key=*) API_KEY="${arg#--metaso-api-key=}" ;;
     --metaso-api-key-env=*) API_KEY_ENV="${arg#--metaso-api-key-env=}" ;;
+    --metaso-fallback-api-key=*) FALLBACK_API_KEY="${arg#--metaso-fallback-api-key=}" ;;
     --metaso-scope=*) SCOPE="${arg#--metaso-scope=}" ;;
     --plugin) i=$((i + 1)); PLUGIN="${ARGS[$i]:-}"; [ -n "$PLUGIN" ] || { echo "用法: --plugin <name>"; exit 1; } ;;
     --src) i=$((i + 1)); SRC="${ARGS[$i]:-}" ;;
     --profile) i=$((i + 1)); PROFILE="${ARGS[$i]:-web}" ;;
     --metaso-api-key) i=$((i + 1)); API_KEY="${ARGS[$i]:-}" ;;
     --metaso-api-key-env) i=$((i + 1)); API_KEY_ENV="${ARGS[$i]:-}" ;;
+    --metaso-fallback-api-key) i=$((i + 1)); FALLBACK_API_KEY="${ARGS[$i]:-}" ;;
     --metaso-scope) i=$((i + 1)); SCOPE="${ARGS[$i]:-webpage}" ;;
     --*) echo "未知参数: $arg"; exit 1 ;;
   esac
@@ -195,6 +199,10 @@ collect_metaso_config() {
   elif [ -n "$API_KEY_ENV" ]; then
     y="$y        apiKeyEnv: '$API_KEY_ENV'\n"
   fi
+  if [ -n "$FALLBACK_API_KEY" ]; then
+    y="$y        # 主 key 额度耗尽（errCode=3000 余额不足）时自动回退用（2026-10-13 事故后加）\n"
+    y="$y        fallbackApiKey: '$FALLBACK_API_KEY'\n"
+  fi
   y="$y        scope: '$SCOPE'\n"
   METASO_YAML="$y"
   if [ -n "$API_KEY" ] && [ "$SWITCH" = "1" ]; then
@@ -211,7 +219,7 @@ collect_metaso_config() {
     fetchProvider: metaso-reader"
   fi
   if [ -n "$API_KEY$API_KEY_ENV" ]; then
-    echo "  [OK] 秘塔配置已收集（scope=$SCOPE, switch=$SWITCH）"
+    echo "  [OK] 秘塔配置已收集（scope=$SCOPE, switch=$SWITCH, fallback=$([ -n "$FALLBACK_API_KEY" ] && echo 有 || echo 无)）"
   else
     echo "  [警告] 未提供 key——只装插件不切换，web_search 保持现状。"
     echo "         可重跑 install.sh --metaso-api-key=... 补齐，或编辑 $PATCH 后重启。"

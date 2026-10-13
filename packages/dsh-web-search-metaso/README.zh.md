@@ -44,6 +44,7 @@ curl -s https://metaso.cn/api/v1/search \
       name: 'dsh-web-search-metaso'
       config:
         apiKey: 'mk-xxx'          # 或 apiKeyEnv: 'METASO_API_KEY'
+        fallbackApiKey: 'mk-yyy'  # 可选：主 key 额度耗尽时自动回退用
         scope: 'webpage'          # webpage|document|paper|image|video|podcast
 # web_search 后端切换到 metaso（删除本段即回退 deepseek 官方搜索）
 - id: web
@@ -57,11 +58,37 @@ curl -s https://metaso.cn/api/v1/search \
 |---|---|---|
 | `apiKey` | - | 秘塔 API key（与 apiKeyEnv 至少其一） |
 | `apiKeyEnv` | `METASO_API_KEY` | 环境变量名（也支持 Web Models 页面管理的 credentials 域） |
+| `fallbackApiKey` | - | 备用 API key：主 key 额度耗尽时**同一次调用内**自动回退（见下节） |
+| `fallbackApiKeyEnv` | `METASO_API_KEY_FALLBACK` | 备用 key 的环境变量名 |
+| `primaryCooldownSeconds` | `600` | 主 key 被判额度耗尽后的冷却秒数（到期自动再试主 key） |
 | `baseURL` | `https://metaso.cn/api/v1` | API 端点 |
 | `scope` | `webpage` | 默认搜索范围 |
 | `includeSummary` | `true` | 是否请求综合摘要（映射为 content） |
 | `includeRawContent` | `false` | 是否抓取来源原文 |
 | `maxResults` | `10` | 单次返回条数上限（1-100） |
+
+## 额度与备用 key（2026-10-13 事故）
+
+秘塔用 **HTTP 200 + `errCode`** 表达业务错误：额度耗尽时回
+`{"errCode":3000,"errMsg":"余额不足"}`。本插件 0.1.5 起：
+
+1. **errCode 非 0 一律抛错**（旧实现只判 HTTP 状态，余额耗尽被静默当成
+   「这次没有搜索结果」—— 5 台机器的 agent 全都看不出来，连一行错误都没有）；
+2. **额度类错误自动换 `fallbackApiKey` 重试一次**，并让主 key 冷却
+   `primaryCooldownSeconds`（默认 600s）。冷却期内直接用备用 key，**到期自动再试主 key**
+   ⇒ 充值到账后无需改配置、无需重启即自愈。鉴权类错误（`errCode=2005`）**不换 key**。
+
+为什么要这么做：额度是**账号级**的，而同一把 key 常被多处共用（本项目 5 台机器的
+dsh、stock_selection 的搜索与估值链路、hermes 的 `metaso.sh`），任何一处突发批量调用
+都能把额度打光 —— 实测 2026-10-13 07:13~07:27，一个 GUI 任务 fan-out 出 4 路子代理，
+14 分钟打了 **232 次 `/search` + 78 次 `/reader`**（各 3 credits ⇒ ≈930 credits，
+约等于全系统 5 天的正常用量），随后 `errCode=3000` 全面爆发。
+
+回归测试（改本插件后必跑，退出码即结论）：
+
+```bash
+node --test packages/dsh-web-search-metaso/tests/
+```
 
 ## 卸载
 

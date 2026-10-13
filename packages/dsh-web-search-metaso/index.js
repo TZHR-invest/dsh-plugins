@@ -23,11 +23,22 @@
  * 配置（cordis.patch.yml 的 insert config 或 Web Models 设置页）：
  *   apiKey:            秘塔 API key（mk- 开头，与 apiKeyEnv 至少其一）
  *   apiKeyEnv:         环境变量名（默认 METASO_API_KEY）
+ *   fallbackApiKey:    备用秘塔 API key —— **主 key 额度耗尽时自动回退**（2026-10-13 事故后加）
+ *   fallbackApiKeyEnv: 备用 key 的环境变量名（默认 METASO_API_KEY_FALLBACK）
+ *   primaryCooldownSeconds: 主 key 被判额度耗尽后的冷却秒数（默认 600）
  *   baseURL:           默认 https://metaso.cn/api/v1
  *   scope:             默认搜索范围（默认 webpage）
  *   includeSummary:    是否请求综合摘要（默认 true，映射为 content）
  *   includeRawContent: 是否抓取来源原文（默认 false）
  *   maxResults:        单次返回条数上限 1-100（默认 10，seam 还会按上限截断）
+ *
+ * ⚠️ 两条与额度有关的纪律（2026-10-13「额度耗尽」事故，详见 README「额度与备用 key」）：
+ *   ① metaso 用 **HTTP 200 + errCode** 表达业务错误（`{"errCode":3000,"errMsg":"余额不足"}`）；
+ *      旧实现只判 HTTP 状态 ⇒ 余额耗尽被静默当成「这次没有搜索结果」，5 台机器的 agent
+ *      全都看不出来。现在 errCode 非 0 一律抛错，不再静默。
+ *   ② 额度是**账号级**的，而同一把 key 被多处共用（本项目 / stock_selection / hermes），
+ *      任何一处突发批量调用都能打光额度。所以额度类错误不重试、直接换 `fallbackApiKey`，
+ *      并让主 key 冷却 `primaryCooldownSeconds`（到期自动再试主 key ⇒ 充值到账即自愈）。
  */
 import z from "@deepseek-ai/schemastery";
 import { credentialRef } from "@deepseek-ai/dsh-credentials";
@@ -59,12 +70,21 @@ function hostKnowsSearchRequestEvent() {
 }
 export const METASO_DEFAULT_BASE_URL = "https://metaso.cn/api/v1";
 export const METASO_DEFAULT_API_KEY_ENV = "METASO_API_KEY";
+export const METASO_DEFAULT_FALLBACK_API_KEY_ENV = "METASO_API_KEY_FALLBACK";
+/** 额度耗尽（可换 key 重试）与其它业务错误的区分码：换 key 只认这一个。 */
+export const METASO_QUOTA_EXHAUSTED = "WEB_PROVIDER_QUOTA_EXHAUSTED";
 const METASO_SCOPES = ["webpage", "document", "paper", "image", "video", "podcast"];
-const USER_AGENT = "dsh-web-search-metaso/0.1.0";
+const USER_AGENT = "dsh-web-search-metaso/0.1.5";
+/** 主 key 被判额度耗尽后的冷却；到期自动再试主 key（充值到账即无感恢复）。 */
+const DEFAULT_PRIMARY_COOLDOWN_SECONDS = 600;
+let primaryBlockedUntil = 0;
 
 export const Config = z.object({
   apiKey: z.string().role("secret"),
   apiKeyEnv: z.string().role("credential-ref").default(METASO_DEFAULT_API_KEY_ENV),
+  fallbackApiKey: z.string().role("secret"),
+  fallbackApiKeyEnv: z.string().role("credential-ref").default(METASO_DEFAULT_FALLBACK_API_KEY_ENV),
+  primaryCooldownSeconds: z.number().min(0).default(DEFAULT_PRIMARY_COOLDOWN_SECONDS),
   baseURL: z.string(),
   scope: z.string(),
   includeSummary: z.boolean().default(true),
@@ -91,8 +111,6 @@ class MetasoSearchProvider {
   }
   async search(request, signal) {
     const options = this.resolveOptions();
-    const apiKey = await resolveKey(options, signal, "Metaso search");
-    throwIfAborted(signal, "Metaso search");
     const { scope, query } = parseScope(options.scope, request.query);
     const size = request.maxResults ?? options.maxResults ?? 10;
     const endpoint = `${options.baseURL}/search`;
@@ -106,33 +124,7 @@ class MetasoSearchProvider {
     };
     options.recordRequest?.({ endpoint, body });
     throwIfAborted(signal, "Metaso search");
-    let response;
-    try {
-      response = await fetch(endpoint, {
-        method: "POST",
-        redirect: "error",
-        headers: {
-          authorization: `Bearer ${apiKey}`,
-          "content-type": "application/json",
-          accept: "application/json",
-          "user-agent": USER_AGENT,
-        },
-        body: JSON.stringify(body),
-        ...(signal !== void 0 ? { signal } : {}),
-      });
-    } catch (error) {
-      if (signal?.aborted === true || isAbortError(error)) throw aborted(signal, "Metaso search");
-      throw new WebError(`Metaso search request failed: ${String(error)}`, "WEB_PROVIDER_ERROR", { cause: error });
-    }
-    if (!response.ok) {
-      throw new WebError(await errorDetail(response, "Metaso search"), "WEB_PROVIDER_ERROR");
-    }
-    let data;
-    try {
-      data = await response.json();
-    } catch (error) {
-      throw new WebError(`Metaso returned an unprocessable response body: ${String(error)}`, "WEB_PROVIDER_ERROR", { cause: error });
-    }
+    const data = await metasoPost({ options, signal, label: "Metaso search", endpoint, body });
     // 各 scope 的结果数组名：webpage/paper/podcast → webpages，document → documents，
     // image → images，video → videos（Metaso 实际行为，含未文档化 scope 的回退）
     const arrayName =
@@ -184,44 +176,16 @@ class MetasoFetchProvider {
   }
   async fetch(request, signal) {
     const options = this.resolveOptions();
-    const apiKey = await resolveKey(options, signal, "Metaso reader");
-    throwIfAborted(signal, "Metaso reader");
     const endpoint = `${options.baseURL}/reader`;
     const body = { url: request.url };
-    let response;
-    try {
-      response = await fetch(endpoint, {
-        method: "POST",
-        redirect: "error",
-        headers: {
-          authorization: `Bearer ${apiKey}`,
-          "content-type": "application/json",
-          accept: "application/json",
-          "user-agent": USER_AGENT,
-        },
-        body: JSON.stringify(body),
-        ...(signal !== void 0 ? { signal } : {}),
-      });
-    } catch (error) {
-      if (signal?.aborted === true || isAbortError(error)) throw aborted(signal, "Metaso reader");
-      throw new WebError(`Metaso reader request failed: ${String(error)}`, "WEB_PROVIDER_ERROR", { cause: error });
-    }
-    if (!response.ok) {
-      throw new WebError(await errorDetail(response, "Metaso reader"), "WEB_PROVIDER_ERROR");
-    }
-    let data;
-    try {
-      data = await response.json();
-    } catch (error) {
-      throw new WebError(`Metaso reader returned an unprocessable response body: ${String(error)}`, "WEB_PROVIDER_ERROR", { cause: error });
-    }
+    const data = await metasoPost({ options, signal, label: "Metaso reader", endpoint, body });
     const content =
       (typeof data.markdown === "string" && data.markdown.length > 0) ? data.markdown
         : (typeof data.content === "string" && data.content.length > 0) ? data.content
           : (typeof data.title === "string" ? data.title : "");
     return {
       url: request.url,
-      statusCode: response.status,
+      statusCode: 200,
       body: { kind: "text", content },
       truncated: false,
     };
@@ -259,10 +223,124 @@ async function errorDetail(response, label) {
   return message;
 }
 
+/**
+ * 解析备用凭据：**永不抛错**（没配 = 没有）。
+ *
+ * 备用 key 是可选增强，它的解析失败不能连累本来可用的主 key。
+ */
+async function resolveFallbackKey(options, signal) {
+  if (signal?.aborted === true) return void 0;
+  if (options.fallbackApiKey !== void 0 && options.fallbackApiKey.length > 0) return options.fallbackApiKey;
+  if (options.resolveFallbackApiKey === void 0) return void 0;
+  try {
+    const resolved = await abortable(options.resolveFallbackApiKey(), signal);
+    return resolved !== void 0 && resolved.length > 0 ? resolved : void 0;
+  } catch {
+    return void 0;
+  }
+}
+
+/**
+ * errCode 非 0 = metaso 的业务错误（**HTTP 仍是 200**）。
+ *
+ * 这是 2026-10-13 那个静默缺陷的修复点：旧实现读 `data[arrayName] ?? []`，
+ * 于是 `{"errCode":3000,"errMsg":"余额不足"}` 被当成「这次搜索没有结果」，
+ * 5 台机器的 agent 拿到的是空结果而不是计费错误。额度类错误单独标码，供换 key 判定。
+ */
+function assertNoErrCode(data, label) {
+  if (data === null || typeof data !== "object") return;
+  const code = data.errCode;
+  if (code === void 0 || code === null || code === 0 || code === "") return;
+  const message = typeof data.errMsg === "string" && data.errMsg.length > 0 ? data.errMsg : `errCode=${code}`;
+  const quota = Number(code) === 3000 || /余额不足|insufficient/i.test(message);
+  throw new WebError(
+    `${label} 被 metaso 拒绝：errCode=${code} ${message}`,
+    quota ? METASO_QUOTA_EXHAUSTED : "WEB_PROVIDER_ERROR",
+  );
+}
+
+/** 单次 HTTP POST（不含换 key 逻辑）：非 2xx、非 JSON、errCode 非 0 一律抛错。 */
+async function metasoPostOnce({ options, signal, label, endpoint, body, apiKey }) {
+  let response;
+  try {
+    response = await fetch(endpoint, {
+      method: "POST",
+      redirect: "error",
+      headers: {
+        authorization: `Bearer ${apiKey}`,
+        "content-type": "application/json",
+        accept: "application/json",
+        "user-agent": USER_AGENT,
+      },
+      body: JSON.stringify(body),
+      ...(signal !== void 0 ? { signal } : {}),
+    });
+  } catch (error) {
+    if (signal?.aborted === true || isAbortError(error)) throw aborted(signal, label);
+    throw new WebError(`${label} request failed: ${String(error)}`, "WEB_PROVIDER_ERROR", { cause: error });
+  }
+  if (!response.ok) {
+    throw new WebError(await errorDetail(response, label), "WEB_PROVIDER_ERROR");
+  }
+  let data;
+  try {
+    data = await response.json();
+  } catch (error) {
+    throw new WebError(`${label} returned an unprocessable response body: ${String(error)}`, "WEB_PROVIDER_ERROR", { cause: error });
+  }
+  assertNoErrCode(data, label);
+  return data;
+}
+
+/** 主 key 额度耗尽 ⇒ 记进程内冷却；冷却期内直接用备用 key，到期自动重试主 key。 */
+function markPrimaryExhausted(options, error) {
+  const cooldownSeconds = Number.isFinite(options.primaryCooldownSeconds)
+    ? options.primaryCooldownSeconds
+    : DEFAULT_PRIMARY_COOLDOWN_SECONDS;
+  primaryBlockedUntil = Date.now() + cooldownSeconds * 1000;
+  const fallbackEnv = options.fallbackApiKeyEnv ?? METASO_DEFAULT_FALLBACK_API_KEY_ENV;
+  // 双路输出（与 dsh-auto-archive 同口径）：dsh web 的进程日志实测只认 console。
+  const message = `[dsh-web-search-metaso] 主 key 额度耗尽（${String(error?.message ?? error)}）；`
+    + `${cooldownSeconds}s 内改用备用 key（${fallbackEnv}），到期自动重试主 key`;
+  console.warn(message);
+}
+
+/**
+ * POST 一次 metaso 接口：主 key 额度耗尽时**自动**改用备用 key 重试一次。
+ *
+ * 只有额度类错误（`METASO_QUOTA_EXHAUSTED`）换 key；429/5xx/网络错误原样抛出。
+ * 两把 key 都失败 ⇒ 抛最后一次的错误（**绝不静默返回空结果**）。
+ */
+async function metasoPost({ options, signal, label, endpoint, body }) {
+  const primary = await resolveKey(options, signal, label);
+  const fallback = await resolveFallbackKey(options, signal);
+  const cooldownActive = fallback !== void 0 && Date.now() < primaryBlockedUntil;
+  const keys = cooldownActive
+    ? [fallback]
+    : (fallback === void 0 ? [primary] : [primary, fallback]);
+  let lastError;
+  for (let i = 0; i < keys.length; i += 1) {
+    const apiKey = keys[i];
+    if (i > 0) throwIfAborted(signal, label);
+    try {
+      return await metasoPostOnce({ options, signal, label, endpoint, body, apiKey });
+    } catch (error) {
+      lastError = error;
+      const isQuota = error instanceof WebError && error.code === METASO_QUOTA_EXHAUSTED;
+      if (!isQuota || i >= keys.length - 1) throw error;
+      if (apiKey === primary) markPrimaryExhausted(options, error);
+    }
+  }
+  throw lastError;
+}
+
 /** 将当前配置与环境投影为下一次操作的选项（每次操作入口快照，一次搜索不混两个配置段）。 */
 function resolveOptions(ctx, config) {
   const apiKeyEnv = credentialRef(config.apiKeyEnv ?? METASO_DEFAULT_API_KEY_ENV);
   const literalApiKey = config.apiKey !== void 0 && config.apiKey.length > 0 ? config.apiKey : void 0;
+  const fallbackApiKeyEnv = credentialRef(config.fallbackApiKeyEnv ?? METASO_DEFAULT_FALLBACK_API_KEY_ENV);
+  const literalFallbackApiKey =
+    config.fallbackApiKey !== void 0 && config.fallbackApiKey.length > 0 ? config.fallbackApiKey : void 0;
   return {
     ...(literalApiKey === void 0 ? {} : { apiKey: literalApiKey }),
     resolveApiKey: async () => {
@@ -272,6 +350,15 @@ function resolveOptions(ctx, config) {
       return ambient !== void 0 && ambient.value.length > 0 ? ambient.value : void 0;
     },
     apiKeyEnv,
+    ...(literalFallbackApiKey === void 0 ? {} : { fallbackApiKey: literalFallbackApiKey }),
+    resolveFallbackApiKey: async () => {
+      const credentials = ctx.get("credentials");
+      if (credentials !== void 0) return (await credentials.resolve(fallbackApiKeyEnv))?.value;
+      const ambient = launchEnvironmentOf(ctx).get(fallbackApiKeyEnv);
+      return ambient !== void 0 && ambient.value.length > 0 ? ambient.value : void 0;
+    },
+    fallbackApiKeyEnv,
+    primaryCooldownSeconds: config.primaryCooldownSeconds ?? DEFAULT_PRIMARY_COOLDOWN_SECONDS,
     baseURL: config.baseURL ?? METASO_DEFAULT_BASE_URL,
     scope: config.scope ?? "webpage",
     includeSummary: config.includeSummary ?? true,

@@ -62,7 +62,9 @@ Written to the profile's `cordis.patch.yml` by the installer:
 > / fake-ip 影响）或 `http`（本地直连，免费，但会拒绝解析到非公网 IP 的域名——
 > 在 OpenClash fake-ip 网络下境外站点基本都取不到）。
 
-Optional: `apiKeyEnv` (default `METASO_API_KEY`, also resolved via the credentials domain), `baseURL` (default `https://metaso.cn/api/v1`), `scope` (default `webpage`), `includeSummary` (default true), `includeRawContent` (default false), `maxResults` (default 10, 1-100).
+Optional: `apiKeyEnv` (default `METASO_API_KEY`, also resolved via the credentials domain), `fallbackApiKey` / `fallbackApiKeyEnv` (default `METASO_API_KEY_FALLBACK`) — used automatically once the primary key runs out of credits, with `primaryCooldownSeconds` (default 600) before the primary key is retried, `baseURL` (default `https://metaso.cn/api/v1`), `scope` (default `webpage`), `includeSummary` (default true), `includeRawContent` (default false), `maxResults` (default 10, 1-100).
+
+Note (2026-10-13 incident): Metaso reports business errors as **HTTP 200 + `errCode`**; this provider now raises on any non-zero `errCode` instead of silently reporting "no results", and falls back to `fallbackApiKey` on quota errors. Regression tests: `node --test packages/dsh-web-search-metaso/tests/`.
 
 ## 会话遥测事件（`web/metaso-search-request`）为何要判断宿主词汇表
 
